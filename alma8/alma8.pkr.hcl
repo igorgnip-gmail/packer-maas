@@ -83,8 +83,13 @@ source "qemu" "alma8" {
   disk_size        = "45G"
   format           = "qcow2"
   headless         = true
+  # repo.almalinux.org is slow enough on aarch64 to miss packer's own
+  # download deadline (confirmed live, same symptom as Rocky's default
+  # mirror). mirror.23m.com (Germany) sustains 18-35MB/s on this file in
+  # testing. Checksum verification stays against the canonical source
+  # deliberately -- see rocky9.pkr.hcl for the reasoning.
   iso_checksum     = "file:https://repo.almalinux.org/almalinux/8/isos/${var.architecture}/CHECKSUM"
-  iso_url          = "https://repo.almalinux.org/almalinux/8/isos/${var.architecture}/AlmaLinux-8-latest-${var.architecture}-boot.iso"
+  iso_url          = "https://mirror.23m.com/almalinux/8/isos/${var.architecture}/AlmaLinux-8-latest-${var.architecture}-boot.iso"
   iso_target_path  = "packer_cache/AlmaLinux-8-latest-${var.architecture}-boot.iso"
   memory           = 2048
   cores            = 4
