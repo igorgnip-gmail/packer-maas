@@ -45,7 +45,23 @@ source "qemu" "cloudimg" {
     ["-drive", "if=pflash,format=raw,id=ovmf_code,readonly=on,file=OVMF_CODE.fd"],
     ["-drive", "if=pflash,format=raw,id=ovmf_vars,file=OVMF_VARS.fd"],
     ["-drive", "file=output-cloudimg/packer-cloudimg,format=qcow2"],
-    ["-drive", "file=seeds-cloudimg.iso,format=raw"]
+    ["-drive", "file=seeds-cloudimg.iso,format=raw"],
+    # Guest serial console -> a chardev that is BOTH logged to a plain
+    # file (mandatory, so a failed/hung build always leaves a trail even
+    # with nobody watching live) AND live-accessible over telnet
+    # (secondary access requested: `telnet localhost 4444` while a build
+    # is running). One chardev, not two separate -serial invocations --
+    # qemu supports both in the same backend. server=on,wait=off so qemu
+    # itself doesn't block waiting for a telnet client to attach; the
+    # build proceeds normally whether or not anyone ever connects.
+    # Debian's official cloud images already enable a ttyS0 serial
+    # console by default (standard for cloud-init images across every
+    # major cloud provider) -- unlike an ISO/preseed install, no
+    # extra console=ttyS0 boot_command injection should be needed here,
+    # but the log will simply be empty if that assumption turns out
+    # wrong, which is itself the confirmation either way.
+    ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4444,server=on,wait=off,telnet=on,logfile=console.log"],
+    ["-serial", "chardev:consolesock"]
   ]
   shutdown_command       = "sudo -S shutdown -P now"
   ssh_handshake_attempts = 50
