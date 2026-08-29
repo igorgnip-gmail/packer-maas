@@ -106,6 +106,15 @@ lvm2
 mdadm
 device-mapper-multipath
 iscsi-initiator-utils
+strace
+vim-common
+pciutils
+usbutils
+ethtool
+dmidecode
+lshw
+smartmontools
+ipmitool
 -plymouth
 # Remove ALSA firmware
 -a*-firmware
