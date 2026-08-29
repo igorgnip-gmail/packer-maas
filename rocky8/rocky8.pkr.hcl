@@ -67,7 +67,11 @@ locals {
   }
   qemu_cpu = {
     "x86_64"  = "host"
-    "aarch64" = var.host_is_arm ? "host" : "max"
+    # See rocky9.pkr.hcl: "max" under aarch64 TCG is extremely slow to
+    # translate (confirmed live -- over an hour stuck vs. <30s to a
+    # working GRUB menu with cortex-a72). host_is_arm=true keeps "host"
+    # passthrough since real hardware isn't affected.
+    "aarch64" = var.host_is_arm ? "host" : "cortex-a72"
   }
 
   ks_proxy           = var.ks_proxy != "" ? "--proxy=${var.ks_proxy}" : ""
@@ -83,14 +87,24 @@ source "qemu" "rocky8" {
   disk_size        = "45G"
   format           = "qcow2"
   headless         = true
+  # See rocky9.pkr.hcl: download.rockylinux.org throttles down to
+  # ~650KB/s after an initial burst; mirror.23m.com (Germany) sustains
+  # 18-35MB/s. Checksum verification stays against the canonical source
+  # deliberately -- see rocky9.pkr.hcl for the reasoning. Also switched
+  # to the versioned "-8-latest-" filename for consistency with rocky9,
+  # even though the unversioned name still resolves the same checksum
+  # today.
   iso_checksum     = "file:http://download.rockylinux.org/pub/rocky/8/isos/${var.architecture}/CHECKSUM"
-  iso_url          = "http://download.rockylinux.org/pub/rocky/8/isos/${var.architecture}/Rocky-${var.architecture}-boot.iso"
-  iso_target_path  = "packer_cache/Rocky-${var.architecture}-boot.iso"
+  iso_url          = "https://mirror.23m.com/rocky/8/isos/${var.architecture}/Rocky-8-latest-${var.architecture}-boot.iso"
+  iso_target_path  = "packer_cache/Rocky-8-latest-${var.architecture}-boot.iso"
   memory           = 2048
   cores            = 4
   qemu_binary      = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
   qemuargs = [
-    ["-serial", "stdio"],
+    # See rocky9.pkr.hcl for why: -serial stdio produces zero output
+    # when packer runs backgrounded/non-interactive (no controlling tty).
+    ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4452,server=on,wait=off,telnet=on,logfile=console.log"],
+    ["-serial", "chardev:consolesock"],
     ["-boot", "strict=off"],
     ["-device", "qemu-xhci"],
     ["-device", "usb-kbd"],
@@ -105,7 +119,7 @@ source "qemu" "rocky8" {
     ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=/usr/share/${lookup(local.uefi_imp, var.architecture, "")}/${lookup(local.uefi_imp, var.architecture, "")}_CODE${lookup(local.uefi_sfx, var.architecture, "")}.fd"],
     ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=${var.architecture}_VARS.fd"],
     ["-drive", "file=output-rocky8/packer-rocky8,if=none,id=drive0,cache=writeback,discard=ignore,format=qcow2"],
-    ["-drive", "file=packer_cache/Rocky-${var.architecture}-boot.iso,if=none,id=cdrom0,media=cdrom"]
+    ["-drive", "file=packer_cache/Rocky-8-latest-${var.architecture}-boot.iso,if=none,id=cdrom0,media=cdrom"]
   ]
   shutdown_timeout = var.timeout
   http_content = {
