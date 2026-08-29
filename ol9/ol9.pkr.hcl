@@ -67,7 +67,15 @@ source "qemu" "ol9" {
   iso_checksum     = "file:${var.ol9_sha256sum_path}"
   iso_url          = var.ol9_iso_url
   memory           = 2048
-  qemuargs         = [["-serial", "stdio"], ["-cpu", "host"]]
+  # See rocky9.pkr.hcl for why: -serial stdio produces zero output when
+  # packer runs backgrounded/non-interactive (no controlling tty). Note:
+  # this template has no architecture/host_is_arm variable at all --
+  # amd64 (-cpu host) only, unlike rocky9/alma8/alma9.
+  qemuargs         = [
+    ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4448,server=on,wait=off,telnet=on,logfile=console.log"],
+    ["-serial", "chardev:consolesock"],
+    ["-cpu", "host"]
+  ]
   shutdown_timeout = var.timeout
   http_content = {
     "/ol9.ks" = templatefile("${path.root}/http/ol9.ks.pkrtpl.hcl",

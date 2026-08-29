@@ -67,7 +67,11 @@ locals {
   }
   qemu_cpu = {
     "x86_64"  = "host"
-    "aarch64" = var.host_is_arm ? "host" : "max"
+    # See rocky9.pkr.hcl: "max" under aarch64 TCG is extremely slow to
+    # translate (confirmed live -- over an hour stuck vs. <30s to a
+    # working GRUB menu with cortex-a72). host_is_arm=true keeps "host"
+    # passthrough since real hardware isn't affected.
+    "aarch64" = var.host_is_arm ? "host" : "cortex-a72"
   }
 
   ks_proxy           = var.ks_proxy != "" ? "--proxy=${var.ks_proxy}" : ""
@@ -95,7 +99,10 @@ source "qemu" "alma8" {
   cores            = 4
   qemu_binary      = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
   qemuargs = [
-    ["-serial", "stdio"],
+    # See rocky9.pkr.hcl for why: -serial stdio produces zero output
+    # when packer runs backgrounded/non-interactive (no controlling tty).
+    ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4446,server=on,wait=off,telnet=on,logfile=console.log"],
+    ["-serial", "chardev:consolesock"],
     ["-boot", "strict=off"],
     ["-device", "qemu-xhci"],
     ["-device", "usb-kbd"],

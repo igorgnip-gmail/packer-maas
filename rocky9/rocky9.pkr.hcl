@@ -67,7 +67,14 @@ locals {
   }
   qemu_cpu = {
     "x86_64"  = "host"
-    "aarch64" = var.host_is_arm ? "host" : "max"
+    # "max" under aarch64 TCG (no KVM, cross-building on an x86_64 host)
+    # emulates an enormous/exotic feature set that's extremely slow to
+    # translate -- confirmed live: over an hour with zero boot progress
+    # (99.9% CPU, no serial output at all) vs. under 30s to a fully
+    # interactive GRUB menu with cortex-a72. Real ARM hardware
+    # (host_is_arm=true) keeps "host" passthrough -- no TCG involved
+    # there, "max" isn't the bottleneck.
+    "aarch64" = var.host_is_arm ? "host" : "cortex-a72"
   }
 
   ks_proxy           = var.ks_proxy != "" ? "--proxy=${var.ks_proxy}" : ""
@@ -104,7 +111,16 @@ source "qemu" "rocky9" {
   cores            = 4
   qemu_binary      = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
   qemuargs = [
-    ["-serial", "stdio"],
+    # -serial stdio only works with a real controlling tty -- when packer
+    # runs backgrounded/non-interactive (no tty), the guest's serial
+    # console output goes nowhere and there's zero install-progress
+    # visibility (confirmed live: an aarch64 build sat for a full hour
+    # with no log output at all before timing out). This mirrors the
+    # chardev-based logging already used in debian-cloudimg.pkr.hcl: one
+    # backend, logged to a plain file AND live-accessible over telnet,
+    # regardless of whether a tty is attached.
+    ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4445,server=on,wait=off,telnet=on,logfile=console.log"],
+    ["-serial", "chardev:consolesock"],
     ["-boot", "strict=off"],
     ["-device", "qemu-xhci"],
     ["-device", "usb-kbd"],
