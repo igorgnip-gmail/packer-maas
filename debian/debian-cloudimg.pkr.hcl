@@ -9,7 +9,14 @@ locals {
   }
   qemu_cpu = {
     "amd64" = "host"
-    "arm64" = var.host_is_arm ? "host" : "max"
+    # "max" under aarch64 TCG (no KVM, cross-building on an x86_64 host)
+    # emulates an enormous/exotic feature set that's extremely slow to
+    # translate -- confirmed live on the RHEL-family templates: over an
+    # hour with zero boot progress vs. under 30s to a working GRUB menu
+    # with cortex-a72. Applying the same fix here pre-emptively before
+    # ever attempting a debian13 arm64 build. host_is_arm=true (real ARM
+    # hardware) keeps "host" passthrough, untouched.
+    "arm64" = var.host_is_arm ? "host" : "cortex-a72"
   }
 
   proxy_env = [
