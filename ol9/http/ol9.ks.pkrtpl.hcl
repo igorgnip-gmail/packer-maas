@@ -8,7 +8,13 @@ network --device eth0 --bootproto=dhcp
 firewall --enabled --service=ssh
 selinux --enforcing
 timezone UTC --utc
-bootloader --location=mbr --driveorder="vda" --timeout=1
+# --disabled (not --location=mbr, a legacy-BIOS directive) -- this
+# build now runs under UEFI (see ol9.pkr.hcl's qemuargs), matching
+# rocky9/alma9's own kickstarts. Anaconda's bootloader phase is skipped
+# entirely; grub2-efi-x64/shim-x64/efibootmgr below (%packages) plus
+# anaconda's own UEFI ESP setup (driven by the firmware it detects,
+# now correctly UEFI) handle it instead.
+bootloader --disabled
 rootpw --plaintext password
 
 # Add the fleet-standard local user. No --password here -- set via

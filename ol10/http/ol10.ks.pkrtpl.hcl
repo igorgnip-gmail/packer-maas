@@ -8,7 +8,11 @@ network --device eth0 --bootproto=dhcp
 firewall --enabled --service=ssh
 selinux --enforcing
 timezone UTC --utc
-bootloader --location=mbr --driveorder="vda" --timeout=1
+# --disabled (not --location=mbr, a legacy-BIOS directive left over
+# from copying ol9's kickstart before ol9 itself was fixed) -- this
+# build runs under UEFI (ol10.pkr.hcl's qemuargs already has OVMF),
+# matching rocky9/alma9/ol9's own kickstarts.
+bootloader --disabled
 rootpw --plaintext password
 
 # Add the fleet-standard local user. No --password here -- set via

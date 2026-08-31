@@ -131,11 +131,25 @@ source "qemu" "ol10" {
   iso_url      = lookup(local.iso_url, var.architecture, "")
   memory       = 2048
   qemu_binary  = "qemu-system-${lookup(local.qemu_arch_dir, var.architecture, "")}"
+  # First real build attempt (2026-08-31) failed with "Qemu failed to
+  # start" -- the ACTUAL bug (found via PACKER_LOG=1, which shows the
+  # real qemu-system-x86_64 command line): qemu_machine/qemu_cpu below
+  # are keyed by x86_64/aarch64 (copied verbatim from rocky9.pkr.hcl,
+  # where var.architecture natively IS x86_64/aarch64), but ol10's own
+  # var.architecture is amd64/arm64 -- a direct `lookup(local.qemu_cpu,
+  # var.architecture, "")` always missed and returned "", producing a
+  # bare `-cpu` flag with the next flag as its value ("qemu-system-
+  # x86_64: unsupported machine type: '-drive'"). Fixed by routing
+  # through qemu_arch_dir first (amd64/arm64 -> x86_64/aarch64), same
+  # double-lookup pattern already used correctly below for uefi_imp/
+  # uefi_sfx. ol9.pkr.hcl's own minimal qemuargs (chardev/serial/cpu
+  # only, no machine/OVMF at all) is confirmed proven/working -- this
+  # extends it only with what ol9 never needed (arm64 support).
   qemuargs = [
     ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4449,server=on,wait=off,telnet=on,logfile=console.log"],
     ["-serial", "chardev:consolesock"],
-    ["-machine", "${lookup(local.qemu_machine, var.architecture, "")}"],
-    ["-cpu", "${lookup(local.qemu_cpu, var.architecture, "")}"],
+    ["-machine", "${lookup(local.qemu_machine, lookup(local.qemu_arch_dir, var.architecture, ""), "")}"],
+    ["-cpu", "${lookup(local.qemu_cpu, lookup(local.qemu_arch_dir, var.architecture, ""), "")}"],
     ["-global", "driver=cfi.pflash01,property=secure,value=off"],
     ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=/usr/share/${lookup(local.uefi_imp, lookup(local.qemu_arch_dir, var.architecture, ""), "")}/${lookup(local.uefi_imp, lookup(local.qemu_arch_dir, var.architecture, ""), "")}_CODE${lookup(local.uefi_sfx, lookup(local.qemu_arch_dir, var.architecture, ""), "")}.fd"],
     ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=${lookup(local.qemu_arch_dir, var.architecture, "")}_VARS.fd"]

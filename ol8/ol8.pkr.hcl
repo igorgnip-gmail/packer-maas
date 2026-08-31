@@ -65,22 +65,35 @@ locals {
 }
 
 source "qemu" "ol8" {
-  boot_command     = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol8.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
-  boot_wait        = "3s"
-  communicator     = "none"
-  disk_size        = "4G"
-  headless         = true
-  iso_checksum     = "file:${var.ol8_sha256sum_path}"
-  iso_url          = var.ol8_iso_url
-  memory           = 2048
-  qemuargs         = [["-serial", "stdio"], ["-cpu", "host"]]
+  boot_command = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol8.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
+  boot_wait    = "3s"
+  communicator = "none"
+  disk_size    = "4G"
+  headless     = true
+  iso_checksum = "file:${var.ol8_sha256sum_path}"
+  iso_url      = var.ol8_iso_url
+  memory       = 2048
+  # 2026-08-31: added OVMF (UEFI) pflash drives -- see ol9.pkr.hcl's own
+  # qemuargs comment for why (same fix, same root cause: this build
+  # previously ran under plain legacy BIOS, leaving anaconda's
+  # bootloader setup misconfigured for the UEFI-only fleet this deploys
+  # onto regardless of the grub2-efi-x64/shim-x64/efibootmgr packages
+  # already installed via %packages).
+  qemuargs = [
+    ["-serial", "stdio"],
+    ["-machine", "accel=kvm"],
+    ["-cpu", "host"],
+    ["-global", "driver=cfi.pflash01,property=secure,value=off"],
+    ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=OVMF_CODE.fd"],
+    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=OVMF_VARS.fd"]
+  ]
   shutdown_timeout = var.timeout
   http_content = {
     "/ol8.ks" = templatefile("${path.root}/http/ol8.ks.pkrtpl.hcl",
       {
-        KS_PROXY                 = local.ks_proxy,
-        KS_OS_REPOS              = local.ks_os_repos,
-        KS_APPSTREAM_REPOS       = local.ks_appstream_repos,
+        KS_PROXY                    = local.ks_proxy,
+        KS_OS_REPOS                 = local.ks_os_repos,
+        KS_APPSTREAM_REPOS          = local.ks_appstream_repos,
         TEMPLATE_USER_PASSWORD_HASH = var.template_user_password_hash
       }
     )
