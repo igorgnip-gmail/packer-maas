@@ -122,37 +122,56 @@ source "qemu" "ol10" {
   # OL10's actual installer -- if OL10's amd64 ISO boot menu offers a
   # separate UEK/RHCK choice (unconfirmed), this sequence would need
   # real key-navigation like rocky9.pkr.hcl's does, not just <tab>-append.
-  boot_command = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol10.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
-  boot_wait    = "3s"
-  communicator = "none"
-  disk_size    = "4G"
-  headless     = true
-  iso_checksum = "file:${lookup(local.iso_checksum_path, var.architecture, "")}"
-  iso_url      = lookup(local.iso_url, var.architecture, "")
-  memory       = 2048
-  qemu_binary  = "qemu-system-${lookup(local.qemu_arch_dir, var.architecture, "")}"
-  # First real build attempt (2026-08-31) failed with "Qemu failed to
-  # start" -- the ACTUAL bug (found via PACKER_LOG=1, which shows the
-  # real qemu-system-x86_64 command line): qemu_machine/qemu_cpu below
-  # are keyed by x86_64/aarch64 (copied verbatim from rocky9.pkr.hcl,
-  # where var.architecture natively IS x86_64/aarch64), but ol10's own
-  # var.architecture is amd64/arm64 -- a direct `lookup(local.qemu_cpu,
-  # var.architecture, "")` always missed and returned "", producing a
-  # bare `-cpu` flag with the next flag as its value ("qemu-system-
-  # x86_64: unsupported machine type: '-drive'"). Fixed by routing
-  # through qemu_arch_dir first (amd64/arm64 -> x86_64/aarch64), same
-  # double-lookup pattern already used correctly below for uefi_imp/
-  # uefi_sfx. ol9.pkr.hcl's own minimal qemuargs (chardev/serial/cpu
-  # only, no machine/OVMF at all) is confirmed proven/working -- this
-  # extends it only with what ol9 never needed (arm64 support).
+  boot_command    = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol10.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
+  boot_wait       = "3s"
+  communicator    = "none"
+  disk_size       = "4G"
+  format          = "qcow2"
+  headless        = true
+  iso_checksum    = "file:${lookup(local.iso_checksum_path, var.architecture, "")}"
+  iso_url         = lookup(local.iso_url, var.architecture, "")
+  iso_target_path = "packer_cache/ol10-${var.architecture}-boot.iso"
+  memory          = 2048
+  qemu_binary     = "qemu-system-${lookup(local.qemu_arch_dir, var.architecture, "")}"
+  # Two real bugs found across three build attempts (2026-08-31):
+  # 1. qemu_machine/qemu_cpu keyed by x86_64/aarch64 (copied from
+  #    rocky9.pkr.hcl, where var.architecture natively IS x86_64/
+  #    aarch64) but ol10's own var.architecture is amd64/arm64 -- a
+  #    direct lookup always missed and returned "", producing a bare
+  #    `-cpu` flag with the next flag as its value. Fixed by routing
+  #    through qemu_arch_dir first (amd64/arm64 -> x86_64/aarch64),
+  #    same double-lookup pattern already used for uefi_imp/uefi_sfx.
+  # 2. Second attempt "fixed" this by trimming down to ol9.pkr.hcl's
+  #    minimal qemuargs (chardev/serial/cpu/machine/OVMF only, no
+  #    explicit disk/cdrom/network/keyboard) on the assumption Packer's
+  #    QEMU builder fills those in automatically. WRONG for this
+  #    packer-plugin-qemu version under UEFI: the build ran a full hour
+  #    with zero output and "Failed to shutdown" -- console.log showed
+  #    the VM's UEFI firmware never saw a bootable CD-ROM device at
+  #    all (Boot Manager Menu offered only PXE/HTTP/Shell, no CD-ROM),
+  #    confirming the disk/cdrom/network/keyboard devices genuinely
+  #    need to be explicit under OVMF, same full set rocky9.pkr.hcl
+  #    already uses (which built successfully, twice, same session).
+  #    ol8/ol9.pkr.hcl had the identical latent bug (OVMF added without
+  #    the matching explicit device set) -- fixed alongside this file.
   qemuargs = [
     ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4449,server=on,wait=off,telnet=on,logfile=console.log"],
     ["-serial", "chardev:consolesock"],
+    ["-boot", "strict=off"],
+    ["-device", "qemu-xhci"],
+    ["-device", "usb-kbd"],
+    ["-device", "virtio-net-pci,netdev=net0"],
+    ["-netdev", "user,id=net0"],
+    ["-device", "virtio-blk-pci,drive=drive0,bootindex=0"],
+    ["-device", "virtio-blk-pci,drive=cdrom0,bootindex=1"],
     ["-machine", "${lookup(local.qemu_machine, lookup(local.qemu_arch_dir, var.architecture, ""), "")}"],
     ["-cpu", "${lookup(local.qemu_cpu, lookup(local.qemu_arch_dir, var.architecture, ""), "")}"],
+    ["-device", "virtio-gpu-pci"],
     ["-global", "driver=cfi.pflash01,property=secure,value=off"],
     ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=/usr/share/${lookup(local.uefi_imp, lookup(local.qemu_arch_dir, var.architecture, ""), "")}/${lookup(local.uefi_imp, lookup(local.qemu_arch_dir, var.architecture, ""), "")}_CODE${lookup(local.uefi_sfx, lookup(local.qemu_arch_dir, var.architecture, ""), "")}.fd"],
-    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=${lookup(local.qemu_arch_dir, var.architecture, "")}_VARS.fd"]
+    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=${lookup(local.qemu_arch_dir, var.architecture, "")}_VARS.fd"],
+    ["-drive", "file=output-ol10/packer-ol10,if=none,id=drive0,cache=writeback,discard=ignore,format=qcow2"],
+    ["-drive", "file=packer_cache/ol10-${var.architecture}-boot.iso,if=none,id=cdrom0,media=cdrom"]
   ]
   shutdown_timeout = var.timeout
   http_content = {

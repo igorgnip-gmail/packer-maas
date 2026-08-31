@@ -65,27 +65,43 @@ locals {
 }
 
 source "qemu" "ol8" {
-  boot_command = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol8.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
-  boot_wait    = "3s"
-  communicator = "none"
-  disk_size    = "4G"
-  headless     = true
-  iso_checksum = "file:${var.ol8_sha256sum_path}"
-  iso_url      = var.ol8_iso_url
-  memory       = 2048
+  boot_command    = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol8.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
+  boot_wait       = "3s"
+  communicator    = "none"
+  disk_size       = "4G"
+  format          = "qcow2"
+  headless        = true
+  iso_checksum    = "file:${var.ol8_sha256sum_path}"
+  iso_url         = var.ol8_iso_url
+  iso_target_path = "packer_cache/ol8-boot.iso"
+  memory          = 2048
   # 2026-08-31: added OVMF (UEFI) pflash drives -- see ol9.pkr.hcl's own
   # qemuargs comment for why (same fix, same root cause: this build
   # previously ran under plain legacy BIOS, leaving anaconda's
   # bootloader setup misconfigured for the UEFI-only fleet this deploys
   # onto regardless of the grub2-efi-x64/shim-x64/efibootmgr packages
-  # already installed via %packages).
+  # already installed via %packages). Explicit disk/cdrom/network/
+  # keyboard devices are REQUIRED alongside OVMF -- see ol9.pkr.hcl's
+  # own qemuargs comment for the live failure this fixes (found while
+  # building ol10 the same session: a trimmed-down qemuargs left no
+  # bootable CD-ROM device under UEFI at all).
   qemuargs = [
     ["-serial", "stdio"],
+    ["-boot", "strict=off"],
+    ["-device", "qemu-xhci"],
+    ["-device", "usb-kbd"],
+    ["-device", "virtio-net-pci,netdev=net0"],
+    ["-netdev", "user,id=net0"],
+    ["-device", "virtio-blk-pci,drive=drive0,bootindex=0"],
+    ["-device", "virtio-blk-pci,drive=cdrom0,bootindex=1"],
     ["-machine", "accel=kvm"],
     ["-cpu", "host"],
+    ["-device", "virtio-gpu-pci"],
     ["-global", "driver=cfi.pflash01,property=secure,value=off"],
     ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=OVMF_CODE.fd"],
-    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=OVMF_VARS.fd"]
+    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=OVMF_VARS.fd"],
+    ["-drive", "file=output-ol8/packer-ol8,if=none,id=drive0,cache=writeback,discard=ignore,format=qcow2"],
+    ["-drive", "file=packer_cache/ol8-boot.iso,if=none,id=cdrom0,media=cdrom"]
   ]
   shutdown_timeout = var.timeout
   http_content = {

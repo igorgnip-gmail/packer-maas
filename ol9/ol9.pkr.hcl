@@ -65,14 +65,16 @@ locals {
 }
 
 source "qemu" "ol9" {
-  boot_command = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol9.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
-  boot_wait    = "3s"
-  communicator = "none"
-  disk_size    = "4G"
-  headless     = true
-  iso_checksum = "file:${var.ol9_sha256sum_path}"
-  iso_url      = var.ol9_iso_url
-  memory       = 2048
+  boot_command    = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol9.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
+  boot_wait       = "3s"
+  communicator    = "none"
+  disk_size       = "4G"
+  format          = "qcow2"
+  headless        = true
+  iso_checksum    = "file:${var.ol9_sha256sum_path}"
+  iso_url         = var.ol9_iso_url
+  iso_target_path = "packer_cache/ol9-boot.iso"
+  memory          = 2048
   # See rocky9.pkr.hcl for why: -serial stdio produces zero output when
   # packer runs backgrounded/non-interactive (no controlling tty). Note:
   # this template has no architecture/host_is_arm variable at all --
@@ -89,14 +91,36 @@ source "qemu" "ol9" {
   # bootloader setup at deploy time to correct for this mismatch, wasted
   # and fragile work compared to the image just being UEFI-correct from
   # the start (same fix as rocky9/alma9/debian, which never had this bug).
+  #
+  # Explicit disk/cdrom/network/keyboard devices are REQUIRED alongside
+  # OVMF, not optional -- found live while building ol10.pkr.hcl (same
+  # session): trimming qemuargs down to chardev/serial/cpu only (this
+  # file's OWN previous state, copied as "proven" into ol10) actually
+  # left the VM's UEFI firmware with no bootable CD-ROM device at all
+  # (confirmed via console.log: Boot Manager Menu offered only PXE/
+  # HTTP/Shell, a full hour of silence, "Failed to shutdown"). Whatever
+  # implicit device-filling this ol9 build originally relied upon
+  # apparently only worked under legacy BIOS, not UEFI, with the
+  # packer-plugin-qemu version now in use -- rocky9.pkr.hcl's full
+  # explicit set (proven working, twice, same session) is required.
   qemuargs = [
     ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4448,server=on,wait=off,telnet=on,logfile=console.log"],
     ["-serial", "chardev:consolesock"],
+    ["-boot", "strict=off"],
+    ["-device", "qemu-xhci"],
+    ["-device", "usb-kbd"],
+    ["-device", "virtio-net-pci,netdev=net0"],
+    ["-netdev", "user,id=net0"],
+    ["-device", "virtio-blk-pci,drive=drive0,bootindex=0"],
+    ["-device", "virtio-blk-pci,drive=cdrom0,bootindex=1"],
     ["-machine", "accel=kvm"],
     ["-cpu", "host"],
+    ["-device", "virtio-gpu-pci"],
     ["-global", "driver=cfi.pflash01,property=secure,value=off"],
     ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=OVMF_CODE.fd"],
-    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=OVMF_VARS.fd"]
+    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=OVMF_VARS.fd"],
+    ["-drive", "file=output-ol9/packer-ol9,if=none,id=drive0,cache=writeback,discard=ignore,format=qcow2"],
+    ["-drive", "file=packer_cache/ol9-boot.iso,if=none,id=cdrom0,media=cdrom"]
   ]
   shutdown_timeout = var.timeout
   http_content = {
