@@ -103,7 +103,14 @@ source "qemu" "rocky10" {
   cores           = 4
   qemu_binary     = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
   qemuargs = [
-    ["-serial", "stdio"],
+    # See rocky9.pkr.hcl for why: -serial stdio produces zero output
+    # when packer runs backgrounded/non-interactive (no controlling
+    # tty) -- this file never had that fix applied, confirmed live
+    # 2026-08-31: a failed arm64 build produced zero diagnostic output
+    # at all (no console.log existed), leaving the actual failure mode
+    # invisible.
+    ["-chardev", "socket,id=consolesock,host=127.0.0.1,port=4450,server=on,wait=off,telnet=on,logfile=console.log"],
+    ["-serial", "chardev:consolesock"],
     ["-boot", "strict=off"],
     ["-device", "qemu-xhci"],
     ["-device", "usb-kbd"],
