@@ -113,10 +113,10 @@ This file needs to be saved on Region Controllers under /var/snap/maas/current/p
 
 ## Default username
 
-MAAS uses cloud-init to create ```cloud-user``` account using the ssh keys configured for the MAAS admin user (e.g. imported from Launchpad). Log in to the machine:
+If deployed through MAAS's own native enlist+deploy flow, MAAS uses cloud-init to create a ```cloud-user``` account using the ssh keys configured for the MAAS admin user (e.g. imported from Launchpad):
 
 ```shell
 ssh -i ~/.ssh/<your_identity_file> cloud-user@<machine-ip-address>
 ```
 
-Next to that, the kickstart script creates an account with both username and password set to  ```rocky```. Note that the default sshd configuration in Rocky 10 disallows password-based authentication when logging in via ssh, so trying `ssh rocky@<machine-ip-address>` will fail. Password-based authentication can be enabled by having `PasswordAuthentication yes` in /etc/ssh/sshd_config after logging in with ```cloud-user```. Perhaps there is a way to make that change using kickstart script, but it is not obvious as ```anaconda```, the installer, makes its own changes to sshd_config file during installation. If you know how to do this, a PR is welcome.
+Separately, the kickstart script itself creates a local ```rockylinux``` account (passwordless sudo, key-only SSH -- the default sshd configuration disallows password-based authentication). Its password is not baked into the template: set the `FLEET_USER_PASSWORD_HASH` environment variable to a SHA-512 crypt hash before running `packer build` if you want this account to also have a working local/console password; otherwise it stays locked and SSH-key-only.
