@@ -116,13 +116,24 @@ variable "timeout" {
 }
 
 source "qemu" "ol10" {
-  # UNVERIFIED (see OPEN QUESTIONS below): this boot_command is copied
-  # from ol9.pkr.hcl's simple <up><tab>-then-append-cmdline sequence,
-  # which assumes a single default boot menu entry. Never tested against
-  # OL10's actual installer -- if OL10's amd64 ISO boot menu offers a
-  # separate UEK/RHCK choice (unconfirmed), this sequence would need
-  # real key-navigation like rocky9.pkr.hcl's does, not just <tab>-append.
-  boot_command    = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol10.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
+  # NOT the isolinux/syslinux <tab>-then-enter convention this was
+  # copied from (ol9.pkr.hcl's OLD boot_command, which only worked
+  # under legacy BIOS) -- under UEFI Oracle's ISO boots GRUB2 instead,
+  # where TAB just drops into the raw command shell (grub>) and the
+  # typed text isn't a valid standalone grub command. Confirmed live
+  # 2026-08-31: sat at a bare `grub>` prompt for the full 1h timeout,
+  # never booting. GRUB2 needs `e` (multi-line kernel-line editor) +
+  # arrow navigation + F10 instead, same pattern rocky9.pkr.hcl/
+  # alma9.pkr.hcl already use successfully under UEFI. Also resolves
+  # the earlier UEK-vs-RHCK OPEN QUESTION below: confirmed via
+  # console.log, OL10's amd64 boot menu has no separate UEK/RHCK entry
+  # at all ("Install Oracle Linux 10.2.0" / "...in FIPS mode" /
+  # "Troubleshooting" only) -- nothing to navigate around there.
+  # Down-count copied from rocky9/alma9 as a starting point (Oracle's
+  # grub.cfg stanza structure not independently confirmed to have the
+  # same line count) -- verify via console.log within the first ~30s
+  # of a build before trusting a full unattended run.
+  boot_command    = ["<up><wait>", "e", "<down><down><down><left>", " console=ttyS0 inst.cmdline inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol10.ks <f10>"]
   boot_wait       = "3s"
   communicator    = "none"
   disk_size       = "4G"

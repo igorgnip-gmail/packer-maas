@@ -65,7 +65,21 @@ locals {
 }
 
 source "qemu" "ol9" {
-  boot_command    = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol9.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
+  # NOT the isolinux/syslinux <tab>-then-enter convention this file
+  # used to have (that only worked under legacy BIOS -- Oracle's ISO
+  # boots ISOLINUX there, where TAB edits the boot line directly).
+  # Under UEFI it boots GRUB2 instead, where TAB just drops into the
+  # raw command shell (grub>) and the typed text isn't a valid
+  # standalone grub command -- confirmed live 2026-08-31: the VM sat at
+  # a bare `grub>` prompt for the full 1h timeout, never actually
+  # booting, after the OVMF fix landed. GRUB2 needs `e` (multi-line
+  # kernel-line editor) + arrow navigation + F10 instead, same pattern
+  # rocky9.pkr.hcl/alma9.pkr.hcl already use successfully under UEFI.
+  # Down-count copied from rocky9/alma9 as a starting point (Oracle's
+  # grub.cfg stanza structure not independently confirmed to have the
+  # same line count) -- verify via console.log within the first ~30s
+  # of a build before trusting a full unattended run.
+  boot_command    = ["<up><wait>", "e", "<down><down><down><left>", " console=ttyS0 inst.cmdline inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol9.ks <f10>"]
   boot_wait       = "3s"
   communicator    = "none"
   disk_size       = "4G"

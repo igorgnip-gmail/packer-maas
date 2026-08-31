@@ -65,7 +65,13 @@ locals {
 }
 
 source "qemu" "ol8" {
-  boot_command    = ["<up><tab> ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol8.ks ", "console=ttyS0 inst.cmdline", "<enter>"]
+  # NOT the isolinux/syslinux <tab>-then-enter convention this file
+  # used to have (that only worked under legacy BIOS) -- see ol9.pkr.hcl's
+  # own boot_command comment for the live failure this fixes (confirmed
+  # 2026-08-31: sat at a bare `grub>` prompt for a full 1h timeout under
+  # UEFI, never booting). GRUB2 needs `e` + arrow navigation + F10
+  # instead, same pattern rocky9.pkr.hcl/alma9.pkr.hcl already use.
+  boot_command    = ["<up><wait>", "e", "<down><down><down><left>", " console=ttyS0 inst.cmdline inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ol8.ks <f10>"]
   boot_wait       = "3s"
   communicator    = "none"
   disk_size       = "4G"
