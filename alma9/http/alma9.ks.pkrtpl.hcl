@@ -236,6 +236,13 @@ device-mapper-multipath
 iscsi-initiator-utils
 strace
 vim-common
+pciutils
+usbutils
+ethtool
+dmidecode
+lshw
+smartmontools
+ipmitool
 # Explicit rather than relying on it being pulled in as a weak/recommended
 # dependency of the kernel package -- makes NIC/storage-controller firmware
 # availability an explicit guarantee instead of an implicit side effect

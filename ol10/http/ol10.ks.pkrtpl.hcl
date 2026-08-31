@@ -193,8 +193,11 @@ printf '%s\n' 'PasswordAuthentication no' > /etc/ssh/sshd_config.d/users.conf
 bash-completion
 cloud-init
 python3-oauthlib
+cloud-utils-growpart
 rsync
 tar
+patch
+yum-utils
 grub2-pc
 grub2-efi-*
 shim-*
@@ -207,7 +210,15 @@ device-mapper-multipath
 iscsi-initiator-utils
 strace
 vim-common
+pciutils
+usbutils
+ethtool
+dmidecode
+lshw
+smartmontools
+ipmitool
 linux-firmware
 -plymouth
+-a*-firmware
 -i*-firmware
 %end

@@ -72,7 +72,7 @@ locals {
     "aarch64" = var.host_is_arm ? "virt,accel=kvm" : "virt"
   }
   qemu_cpu = {
-    "x86_64"  = "host"
+    "x86_64" = "host"
     # See rocky9.pkr.hcl: "max" under aarch64 TCG is extremely slow to
     # translate (confirmed live -- over an hour stuck vs. <30s to a
     # working GRUB menu with cortex-a72). host_is_arm=true keeps "host"
@@ -87,23 +87,23 @@ locals {
 }
 
 source "qemu" "alma9" {
-  boot_command     = ["<up><wait>", "e", "<down><down><down><left>", " console=ttyS0 inst.cmdline inst.text inst.ks=http://{{.HTTPIP}}:{{.HTTPPort}}/alma9.ks <f10>"]
-  boot_wait        = "5s"
-  communicator     = "none"
-  disk_size        = "45G"
-  format           = "qcow2"
-  headless         = true
+  boot_command = ["<up><wait>", "e", "<down><down><down><left>", " console=ttyS0 inst.cmdline inst.text inst.ks=http://{{.HTTPIP}}:{{.HTTPPort}}/alma9.ks <f10>"]
+  boot_wait    = "5s"
+  communicator = "none"
+  disk_size    = "45G"
+  format       = "qcow2"
+  headless     = true
   # repo.almalinux.org is slow enough on aarch64 to miss packer's own
   # download deadline (confirmed live, same symptom as Rocky's default
   # mirror). mirror.23m.com (Germany) sustains 18-35MB/s on this file in
   # testing. Checksum verification stays against the canonical source
   # deliberately -- see rocky9.pkr.hcl for the reasoning.
-  iso_checksum     = "file:https://repo.almalinux.org/almalinux/9/isos/${var.architecture}/CHECKSUM"
-  iso_url          = "https://mirror.23m.com/almalinux/9/isos/${var.architecture}/AlmaLinux-9-latest-${var.architecture}-boot.iso"
-  iso_target_path  = "packer_cache/AlmaLinux-9-latest-${var.architecture}-boot.iso"
-  memory           = 2048
-  cores            = 4
-  qemu_binary      = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
+  iso_checksum    = "file:https://repo.almalinux.org/almalinux/9/isos/${var.architecture}/CHECKSUM"
+  iso_url         = "https://mirror.23m.com/almalinux/9/isos/${var.architecture}/AlmaLinux-9-latest-${var.architecture}-boot.iso"
+  iso_target_path = "packer_cache/AlmaLinux-9-latest-${var.architecture}-boot.iso"
+  memory          = 2048
+  cores           = 4
+  qemu_binary     = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
   qemuargs = [
     # See rocky9.pkr.hcl for why: -serial stdio produces zero output
     # when packer runs backgrounded/non-interactive (no controlling tty).
@@ -129,10 +129,10 @@ source "qemu" "alma9" {
   http_content = {
     "/alma9.ks" = templatefile("${path.root}/http/alma9.ks.pkrtpl.hcl",
       {
-        KS_PROXY                 = local.ks_proxy,
-        KS_OS_REPOS              = local.ks_os_repos,
-        KS_APPSTREAM_REPOS       = local.ks_appstream_repos,
-        KS_EXTRAS_REPOS          = local.ks_extras_repos,
+        KS_PROXY                    = local.ks_proxy,
+        KS_OS_REPOS                 = local.ks_os_repos,
+        KS_APPSTREAM_REPOS          = local.ks_appstream_repos,
+        KS_EXTRAS_REPOS             = local.ks_extras_repos,
         TEMPLATE_USER_PASSWORD_HASH = var.template_user_password_hash
       }
     )

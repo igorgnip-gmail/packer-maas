@@ -68,15 +68,18 @@ if [ -n "$TEMPLATE_USER_PASSWORD_HASH" ]; then
 fi
 %end
 
-%packages
+%packages --ignoremissing
 @core
 bash-completion
 cloud-init
 # cloud-init only requires python3-oauthlib with MAAS. As such upstream
 # removed this dependency.
 python3-oauthlib
+cloud-utils-growpart
 rsync
 tar
+patch
+yum-utils
 # grub2-efi-x64 ships grub signed for UEFI secure boot. If grub2-efi-x64-modules
 # is installed grub will be generated on deployment and unsigned which breaks
 # UEFI secure boot.
@@ -88,7 +91,23 @@ lvm2
 mdadm
 device-mapper-multipath
 iscsi-initiator-utils
+strace
+vim-common
+pciutils
+usbutils
+ethtool
+dmidecode
+lshw
+smartmontools
+ipmitool
+# Explicit rather than relying on it being pulled in as a weak/recommended
+# dependency of the kernel package -- makes NIC/storage-controller firmware
+# availability an explicit guarantee instead of an implicit side effect
+# that could silently regress if install options ever change.
+linux-firmware
 -plymouth
+# Remove ALSA firmware
+-a*-firmware
 # Remove Intel wireless firmware
 -i*-firmware
 %end
