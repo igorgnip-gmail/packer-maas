@@ -24,6 +24,12 @@ variable ks_mirror {
   default = "${env("KS_MIRROR")}"
 }
 
+variable fleet_user_password_hash {
+  type        = string
+  default     = "${env("FLEET_USER_PASSWORD_HASH")}"
+  description = "SHA-512 crypt hash for the local fleet-standard user's console/KVM-fallback password. Never hardcode this in the template -- set the FLEET_USER_PASSWORD_HASH env var before building. Empty by default (kickstart's chpasswd -e is skipped if unset, leaving the account locked)."
+}
+
 variable "timeout" {
   type        = string
   default     = "1h"
@@ -123,10 +129,11 @@ source "qemu" "alma8" {
   http_content = {
     "/alma8.ks" = templatefile("${path.root}/http/alma8.ks.pkrtpl.hcl",
       {
-        KS_PROXY           = local.ks_proxy,
-        KS_OS_REPOS        = local.ks_os_repos,
-        KS_APPSTREAM_REPOS = local.ks_appstream_repos,
-        KS_EXTRAS_REPOS    = local.ks_extras_repos
+        KS_PROXY                 = local.ks_proxy,
+        KS_OS_REPOS              = local.ks_os_repos,
+        KS_APPSTREAM_REPOS       = local.ks_appstream_repos,
+        KS_EXTRAS_REPOS          = local.ks_extras_repos,
+        FLEET_USER_PASSWORD_HASH = var.fleet_user_password_hash
       }
     )
   }

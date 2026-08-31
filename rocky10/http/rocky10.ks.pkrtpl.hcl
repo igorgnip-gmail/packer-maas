@@ -40,8 +40,10 @@ part / --size=1 --grow --asprimary --fstype=ext4
 # Set root password
 rootpw --plaintext password
 
-# Add a user named packer
-user --groups=wheel --name=rocky --password=rocky --plaintext --gecos="rocky"
+# Add the fleet-standard local user. No --password here -- set via
+# chpasswd in %post instead (a hashed value, not kickstart's own plaintext
+# option), matching this pipeline's shared-hash convention.
+user --groups=wheel --name=rockylinux --gecos="Rocky Linux"
 
 %post --erroronfail
 # workaround anaconda requirements and clear root password
@@ -68,22 +70,33 @@ sed -i 's/GRUB_ENABLE_BLSCFG=.*/GRUB_ENABLE_BLSCFG=false/g' /etc/default/grub
 
 yum clean all
 
-# Passwordless sudo for the user 'rocky'
-echo "rocky ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/rocky
-chmod 440 /etc/sudoers.d/rocky
+# Passwordless sudo for rockylinux
+echo "rockylinux ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/rockylinux
+chmod 440 /etc/sudoers.d/rockylinux
+
+# Fleet-wide shared password hash (same value ansible-bmc's
+# templates/curtin/3-extract.yaml.j2 sets via cloud-init at deploy time --
+# duplicated here so the account is usable from local KVM/console even
+# before cloud-init ever runs). Not yet a live deploy target (no sshd
+# hardening block in this file, unlike rocky8/9) -- add that too before
+# this template goes into active use.
+FLEET_USER_PASSWORD_HASH='${FLEET_USER_PASSWORD_HASH}'
+if [ -n "$FLEET_USER_PASSWORD_HASH" ]; then
+    echo "rockylinux:$FLEET_USER_PASSWORD_HASH" | chpasswd -e
+fi
 
 #---- Optional - Install your SSH key ----
-# mkdir -m0700 /home/rocky/.ssh/
+# mkdir -m0700 /home/rockylinux/.ssh/
 #
-# cat <<EOF >/home/rocky/.ssh/authorized_keys
+# cat <<EOF >/home/rockylinux/.ssh/authorized_keys
 # ssh-rsa <your_public_key_here> you@your.domain
 # EOF
 #
 ### set permissions
-# chmod 0600 /home/rocky/.ssh/authorized_keys
+# chmod 0600 /home/rockylinux/.ssh/authorized_keys
 #
 #### fix up selinux context
-# restorecon -R /home/rocky/.ssh/
+# restorecon -R /home/rockylinux/.ssh/
 
 %end
 

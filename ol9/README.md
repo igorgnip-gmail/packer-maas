@@ -74,4 +74,4 @@ maas $PROFILE boot-resources create \
 
 ## Default Username
 
-The default username is ```cloud-user```
+The default username is ```oraclelinux```

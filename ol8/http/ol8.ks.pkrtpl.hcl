@@ -11,6 +11,14 @@ timezone UTC --utc
 bootloader --location=mbr --driveorder="vda" --timeout=1
 rootpw --plaintext password
 
+# Add the fleet-standard local user. No --password here -- set via
+# chpasswd in %post instead (a hashed value, not kickstart's own plaintext
+# option), matching this pipeline's shared-hash convention (same pattern
+# as rocky9/alma9's own kickstarts). Not yet a live deploy target (no
+# sshd hardening block in this file, unlike ol9) -- add that too before
+# this template goes into active use.
+user --groups=wheel --name=oraclelinux --gecos="Oracle Linux"
+
 repo --name="ol8_AppStream" ${KS_APPSTREAM_REPOS} ${KS_PROXY}
 
 zerombr
@@ -41,6 +49,20 @@ sed -ri 's/(GRUB_CMDLINE_LINUX=".*)\s+console=ttyS0(.*")/\1\2/' /etc/default/gru
 sed -i 's/GRUB_ENABLE_BLSCFG=.*/GRUB_ENABLE_BLSCFG=false/g' /etc/default/grub
 
 dnf clean all
+
+# Passwordless sudo for oraclelinux
+echo "oraclelinux ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/oraclelinux
+chmod 440 /etc/sudoers.d/oraclelinux
+
+# Fleet-wide shared password hash (same value ansible-bmc's
+# templates/curtin/3-extract.yaml.j2 sets via cloud-init at deploy time --
+# duplicated here so the account is usable from local KVM/console even
+# before cloud-init ever runs). Temporary/interim value, not a long-term
+# secret -- see the shared-hash convention note above.
+FLEET_USER_PASSWORD_HASH='${FLEET_USER_PASSWORD_HASH}'
+if [ -n "$FLEET_USER_PASSWORD_HASH" ]; then
+    echo "oraclelinux:$FLEET_USER_PASSWORD_HASH" | chpasswd -e
+fi
 %end
 
 %packages

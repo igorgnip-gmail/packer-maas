@@ -40,8 +40,10 @@ part / --size=1 --grow --asprimary --fstype=ext4
 # Set root password
 rootpw --plaintext password
 
-# Add a user named packer
-user --groups=wheel --name=alma --password=alma --plaintext --gecos="alma"
+# Add the fleet-standard local user. No --password here -- set via
+# chpasswd in %post instead (a hashed value, not kickstart's own plaintext
+# option), matching this pipeline's shared-hash convention.
+user --groups=wheel --name=almalinux --gecos="AlmaLinux"
 
 %post --erroronfail
 # workaround anaconda requirements and clear root password
@@ -68,22 +70,33 @@ sed -i 's/GRUB_ENABLE_BLSCFG=.*/GRUB_ENABLE_BLSCFG=false/g' /etc/default/grub
 
 yum clean all
 
-# Passwordless sudo for the user 'alma'
-echo "alma ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/alma
-chmod 440 /etc/sudoers.d/alma
+# Passwordless sudo for almalinux
+echo "almalinux ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/almalinux
+chmod 440 /etc/sudoers.d/almalinux
+
+# Fleet-wide shared password hash (same value ansible-bmc's
+# templates/curtin/3-extract.yaml.j2 sets via cloud-init at deploy time --
+# duplicated here so the account is usable from local KVM/console even
+# before cloud-init ever runs). Not yet a live deploy target (no sshd
+# hardening block in this file, unlike alma8/9) -- add that too before
+# this template goes into active use.
+FLEET_USER_PASSWORD_HASH='${FLEET_USER_PASSWORD_HASH}'
+if [ -n "$FLEET_USER_PASSWORD_HASH" ]; then
+    echo "almalinux:$FLEET_USER_PASSWORD_HASH" | chpasswd -e
+fi
 
 #---- Optional - Install your SSH key ----
-# mkdir -m0700 /home/alma/.ssh/
+# mkdir -m0700 /home/almalinux/.ssh/
 #
-# cat <<EOF >/home/alma/.ssh/authorized_keys
+# cat <<EOF >/home/almalinux/.ssh/authorized_keys
 # ssh-rsa <your_public_key_here> you@your.domain
 # EOF
 #
 ### set permissions
-# chmod 0600 /home/alma/.ssh/authorized_keys
+# chmod 0600 /home/almalinux/.ssh/authorized_keys
 #
 #### fix up selinux context
-# restorecon -R /home/alma/.ssh/
+# restorecon -R /home/almalinux/.ssh/
 
 %end
 
