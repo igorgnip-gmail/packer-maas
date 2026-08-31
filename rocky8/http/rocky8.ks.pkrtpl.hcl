@@ -181,6 +181,24 @@ dracut -f --regenerate-all --no-hostonly --add "lvm mdraid" \
     --include /lib/dracut/hooks/initqueue /lib/dracut/hooks/initqueue \
     --install "strace bash find which ps vi xxd date"
 
+
+# Harden sshd: root login must use a key (never a password), and no user
+# may password-auth in at all. Uses the modern drop-in convention
+# (/etc/ssh/sshd_config.d/*.conf) rather than editing the vendor-shipped
+# sshd_config directly. That only actually takes effect if something
+# includes the directory, and sshd_config uses first-value-wins semantics
+# -- confirmed live against a real deployed AlmaLinux 8 target that EL8's
+# shipped sshd_config has NO Include directive at all (EL9 ships one by
+# default), which would make any drop-in file silently inert. Removing
+# any existing Include line and re-adding it as line 1 (rather than just
+# checking presence) guarantees our drop-ins are parsed first and win,
+# regardless of where the stock file already places it or what it
+# already sets explicitly further down.
+sed -i -E '/^[[:space:]]*Include[[:space:]]+\/etc\/ssh\/sshd_config\.d\//d' /etc/ssh/sshd_config
+sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' /etc/ssh/sshd_config
+mkdir -p /etc/ssh/sshd_config.d
+printf '%s\n' 'PermitRootLogin prohibit-password' > /etc/ssh/sshd_config.d/root.conf
+printf '%s\n' 'PasswordAuthentication no' > /etc/ssh/sshd_config.d/users.conf
 %end
 
 %packages --ignoremissing
