@@ -79,9 +79,9 @@ chmod 440 /etc/sudoers.d/rockylinux
 # before cloud-init ever runs). SSH access stays key-only regardless (see
 # the sshd hardening block below) -- this is purely a local-console
 # fallback, not a remote access path.
-FLEET_USER_PASSWORD_HASH='${FLEET_USER_PASSWORD_HASH}'
-if [ -n "$FLEET_USER_PASSWORD_HASH" ]; then
-    echo "rockylinux:$FLEET_USER_PASSWORD_HASH" | chpasswd -e
+TEMPLATE_USER_PASSWORD_HASH='${TEMPLATE_USER_PASSWORD_HASH}'
+if [ -n "$TEMPLATE_USER_PASSWORD_HASH" ]; then
+    echo "rockylinux:$TEMPLATE_USER_PASSWORD_HASH" | chpasswd -e
 fi
 
 #---- Optional - Install your SSH key ----

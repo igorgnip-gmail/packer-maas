@@ -59,9 +59,9 @@ chmod 440 /etc/sudoers.d/oraclelinux
 # duplicated here so the account is usable from local KVM/console even
 # before cloud-init ever runs). Temporary/interim value, not a long-term
 # secret -- see the shared-hash convention note above.
-FLEET_USER_PASSWORD_HASH='${FLEET_USER_PASSWORD_HASH}'
-if [ -n "$FLEET_USER_PASSWORD_HASH" ]; then
-    echo "oraclelinux:$FLEET_USER_PASSWORD_HASH" | chpasswd -e
+TEMPLATE_USER_PASSWORD_HASH='${TEMPLATE_USER_PASSWORD_HASH}'
+if [ -n "$TEMPLATE_USER_PASSWORD_HASH" ]; then
+    echo "oraclelinux:$TEMPLATE_USER_PASSWORD_HASH" | chpasswd -e
 fi
 %end
 

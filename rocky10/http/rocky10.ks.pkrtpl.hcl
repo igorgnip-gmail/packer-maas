@@ -80,9 +80,9 @@ chmod 440 /etc/sudoers.d/rockylinux
 # before cloud-init ever runs). Not yet a live deploy target (no sshd
 # hardening block in this file, unlike rocky8/9) -- add that too before
 # this template goes into active use.
-FLEET_USER_PASSWORD_HASH='${FLEET_USER_PASSWORD_HASH}'
-if [ -n "$FLEET_USER_PASSWORD_HASH" ]; then
-    echo "rockylinux:$FLEET_USER_PASSWORD_HASH" | chpasswd -e
+TEMPLATE_USER_PASSWORD_HASH='${TEMPLATE_USER_PASSWORD_HASH}'
+if [ -n "$TEMPLATE_USER_PASSWORD_HASH" ]; then
+    echo "rockylinux:$TEMPLATE_USER_PASSWORD_HASH" | chpasswd -e
 fi
 
 #---- Optional - Install your SSH key ----

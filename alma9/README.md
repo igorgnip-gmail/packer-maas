@@ -118,4 +118,4 @@ If deployed through MAAS's own native enlist+deploy flow, MAAS uses cloud-init t
 ssh -i ~/.ssh/<your_identity_file> cloud-user@<machine-ip-address>
 ```
 
-Separately, the kickstart script itself creates a local ```almalinux``` account (passwordless sudo, key-only SSH -- the default sshd configuration disallows password-based authentication). Its password is not baked into the template: set the `FLEET_USER_PASSWORD_HASH` environment variable to a SHA-512 crypt hash before running `packer build` if you want this account to also have a working local/console password; otherwise it stays locked and SSH-key-only.
+Separately, the kickstart script itself creates a local ```almalinux``` account (passwordless sudo, key-only SSH -- the default sshd configuration disallows password-based authentication). Its password is not baked into the template: set the `TEMPLATE_USER_PASSWORD_HASH` environment variable to a SHA-512 crypt hash before running `packer build` if you want this account to also have a working local/console password; otherwise it stays locked and SSH-key-only.

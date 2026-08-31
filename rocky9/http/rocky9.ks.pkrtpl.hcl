@@ -75,7 +75,7 @@ echo "rockylinux ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/rockylinux
 chmod 440 /etc/sudoers.d/rockylinux
 
 # Fleet-wide shared password hash, supplied at build time via the
-# FLEET_USER_PASSWORD_HASH env var (see rocky9.pkr.hcl's variable of the
+# TEMPLATE_USER_PASSWORD_HASH env var (see rocky9.pkr.hcl's variable of the
 # same name) -- NEVER hardcode a real hash in this template, it gets
 # committed/pushed. Same value ansible-bmc's templates/curtin/
 # 3-extract.yaml.j2 sets via cloud-init at deploy time; duplicated here
@@ -84,9 +84,9 @@ chmod 440 /etc/sudoers.d/rockylinux
 # hardening block below) -- this is purely a local-console fallback, not
 # a remote access path. Skipped entirely (account stays locked) if the
 # env var wasn't set at build time.
-FLEET_USER_PASSWORD_HASH='${FLEET_USER_PASSWORD_HASH}'
-if [ -n "$FLEET_USER_PASSWORD_HASH" ]; then
-    echo "rockylinux:$FLEET_USER_PASSWORD_HASH" | chpasswd -e
+TEMPLATE_USER_PASSWORD_HASH='${TEMPLATE_USER_PASSWORD_HASH}'
+if [ -n "$TEMPLATE_USER_PASSWORD_HASH" ]; then
+    echo "rockylinux:$TEMPLATE_USER_PASSWORD_HASH" | chpasswd -e
 fi
 
 #---- Optional - Install your SSH key ----
