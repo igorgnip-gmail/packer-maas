@@ -56,15 +56,25 @@ apt-get install --no-install-recommends -y \
     firmware-qlogic
 
 # GPU firmware (i915 GuC/DMC, e.g. i915/tgl_guc_70.bin, i915/adls_dmc_ver2_01.bin)
-# lives in firmware-misc-nonfree, a separate package from firmware-intel-misc
-# above -- confirmed missing live 2026-08-31 (dpkg -l showed "un", not
-# installed): i915 failed every GuC firmware fetch with -ENOENT and declared
-# the GPU "wedged". Confirmed harmless in practice on the server hardware
-# this was found on (Supermicro board's actual console/KVM video path is the
-# ASPEED `ast` driver, not the CPU's iGPU -- ast loaded with zero errors) --
-# added anyway for image-build hygiene/completeness, cheap and correct
-# regardless of which GPU a given target actually uses for display.
-apt-get install --no-install-recommends -y firmware-misc-nonfree
+# -- confirmed missing live 2026-08-31 (dpkg -l showed "un", not installed):
+# i915 failed every GuC firmware fetch with -ENOENT and declared the GPU
+# "wedged". Confirmed harmless in practice on the server hardware this was
+# found on (Supermicro board's actual console/KVM video path is the ASPEED
+# `ast` driver, not the CPU's iGPU -- ast loaded with zero errors) -- added
+# anyway for image-build hygiene/completeness, cheap and correct regardless
+# of which GPU a given target actually uses for display.
+#
+# firmware-intel-graphics, NOT firmware-misc-nonfree -- corrected same
+# session after the first rebuild: verified directly against packages.
+# debian.org's contents search that firmware-misc-nonfree does NOT ship
+# any i915/* files at all (confirmed empty on the built image too, despite
+# the package installing successfully -- it was simply the wrong package).
+# Debian splits Intel graphics firmware into its own dedicated package.
+# firmware-misc-nonfree kept anyway -- it does ship other real firmware
+# (audio codec blobs etc.), just not this.
+apt-get install --no-install-recommends -y \
+    firmware-misc-nonfree \
+    firmware-intel-graphics
 
 # mdadm: curtin's builtin curthooks unconditionally tries to write
 # /etc/mdadm/mdadm.conf into the target during the curthooks phase
