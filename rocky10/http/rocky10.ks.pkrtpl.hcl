@@ -100,7 +100,16 @@ fi
 
 %end
 
-%packages
+# --ignoremissing + wildcards (not hardcoded grub2-efi-x64/shim-x64) --
+# this file never got either fix. Confirmed live 2026-08-31: without
+# them, an aarch64 build fails outright ("Non interactive installation
+# failed: Some packages, groups or modules are missing") since
+# grub2-efi-x64/shim-x64/grub2-efi-x64-modules genuinely don't exist on
+# that arch (grub2-efi-aa64 does) and there's no --ignoremissing to
+# tolerate it -- same fix already applied to rocky9/alma9/alma10/ol10.
+# Also synced the rest of this list against rocky9's more complete one
+# (diagnostic tools, linux-firmware, -a*-firmware exclusion) while here.
+%packages --ignoremissing
 @Core
 bash-completion
 cloud-init
@@ -109,15 +118,29 @@ rsync
 tar
 patch
 yum-utils
-grub2-efi-x64
-shim-x64
-grub2-efi-x64-modules
+grub2-efi-*
+shim-*
+grub2-efi-*-modules
 efibootmgr
 dosfstools
 lvm2
 mdadm
 device-mapper-multipath
 iscsi-initiator-utils
+strace
+vim-common
+pciutils
+usbutils
+ethtool
+dmidecode
+lshw
+smartmontools
+ipmitool
+# Explicit rather than relying on it being pulled in as a weak/recommended
+# dependency of the kernel package -- makes NIC/storage-controller firmware
+# availability an explicit guarantee instead of an implicit side effect
+# that could silently regress if install options ever change.
+linux-firmware
 -plymouth
 # Remove ALSA firmware
 -a*-firmware
