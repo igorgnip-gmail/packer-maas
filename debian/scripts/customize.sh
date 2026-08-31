@@ -55,6 +55,17 @@ apt-get install --no-install-recommends -y \
     firmware-realtek \
     firmware-qlogic
 
+# GPU firmware (i915 GuC/DMC, e.g. i915/tgl_guc_70.bin, i915/adls_dmc_ver2_01.bin)
+# lives in firmware-misc-nonfree, a separate package from firmware-intel-misc
+# above -- confirmed missing live 2026-08-31 (dpkg -l showed "un", not
+# installed): i915 failed every GuC firmware fetch with -ENOENT and declared
+# the GPU "wedged". Confirmed harmless in practice on the server hardware
+# this was found on (Supermicro board's actual console/KVM video path is the
+# ASPEED `ast` driver, not the CPU's iGPU -- ast loaded with zero errors) --
+# added anyway for image-build hygiene/completeness, cheap and correct
+# regardless of which GPU a given target actually uses for display.
+apt-get install --no-install-recommends -y firmware-misc-nonfree
+
 # mdadm: curtin's builtin curthooks unconditionally tries to write
 # /etc/mdadm/mdadm.conf into the target during the curthooks phase
 # (regardless of whether this specific target actually uses raid --
@@ -82,6 +93,19 @@ apt-get install --no-install-recommends -y \
 # tmpfs-backed default.
 mkdir -p /var/log/journal
 systemd-tmpfiles --create --prefix /var/log/journal || true
+
+# cloud-init's own SSH module manages /etc/ssh/sshd_config.d/50-cloud-init.conf
+# and rewrites it based on the ssh_pwauth cloud-config directive -- confirmed
+# live 2026-08-31 that leaving this unset produces PasswordAuthentication yes
+# in that file (this cloud-init version's effective default), and that a
+# manually-edited/statically-written version of that same file does NOT
+# survive here the way it does on the RHEL-family images (those get it via a
+# static %post write, since RHEL images don't have cloud-init managing
+# sshd_config.d at all). Explicit false here is what actually sticks, since
+# it's cloud-init's own module writing the correct value from its own
+# config, not something fighting cloud-init for ownership of the file.
+mkdir -p /etc/cloud/cloud.cfg.d
+printf '%s\n' '#cloud-config' 'ssh_pwauth: false' > /etc/cloud/cloud.cfg.d/99-disable-ssh-pwauth.cfg
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
