@@ -83,18 +83,25 @@ locals {
 }
 
 source "qemu" "rocky10" {
-  boot_command     = ["<up><wait>", "e", "<down><down><down><left>", " console=ttyS0 inst.cmdline inst.text inst.ks=http://{{.HTTPIP}}:{{.HTTPPort}}/rocky10.ks <f10>"]
-  boot_wait        = "5s"
-  communicator     = "none"
-  disk_size        = "45G"
-  format           = "qcow2"
-  headless         = true
-  iso_checksum     = "file:http://download.rockylinux.org/pub/rocky/10/isos/${var.architecture}/CHECKSUM"
-  iso_url          = "http://download.rockylinux.org/pub/rocky/10/isos/${var.architecture}/Rocky-10-latest-${var.architecture}-boot.iso"
-  iso_target_path  = "packer_cache/Rocky-10-latest-${var.architecture}-boot.iso"
-  memory           = 2048
-  cores            = 4
-  qemu_binary      = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
+  boot_command = ["<up><wait>", "e", "<down><down><down><left>", " console=ttyS0 inst.cmdline inst.text inst.ks=http://{{.HTTPIP}}:{{.HTTPPort}}/rocky10.ks <f10>"]
+  boot_wait    = "5s"
+  communicator = "none"
+  disk_size    = "45G"
+  format       = "qcow2"
+  headless     = true
+  # See rocky9.pkr.hcl's own comment for why: download.rockylinux.org
+  # throttles the ISO itself down to ~650KB/s after an initial burst --
+  # mirror.23m.com sustains far higher throughput on the same file
+  # (confirmed live 2026-08-31). Checksum verification stays against the
+  # canonical source deliberately -- a small file, not subject to the
+  # same throttling, fetched from a different host than the one serving
+  # the bulk bytes, so a compromised/stale mirror still gets caught.
+  iso_checksum    = "file:http://download.rockylinux.org/pub/rocky/10/isos/${var.architecture}/CHECKSUM"
+  iso_url         = "https://mirror.23m.com/rocky/10/isos/${var.architecture}/Rocky-10-latest-${var.architecture}-boot.iso"
+  iso_target_path = "packer_cache/Rocky-10-latest-${var.architecture}-boot.iso"
+  memory          = 2048
+  cores           = 4
+  qemu_binary     = "qemu-system-${lookup(local.qemu_arch, var.architecture, "")}"
   qemuargs = [
     ["-serial", "stdio"],
     ["-boot", "strict=off"],
@@ -117,10 +124,10 @@ source "qemu" "rocky10" {
   http_content = {
     "/rocky10.ks" = templatefile("${path.root}/http/rocky10.ks.pkrtpl.hcl",
       {
-        KS_PROXY                 = local.ks_proxy,
-        KS_OS_REPOS              = local.ks_os_repos,
-        KS_APPSTREAM_REPOS       = local.ks_appstream_repos,
-        KS_EXTRAS_REPOS          = local.ks_extras_repos,
+        KS_PROXY                    = local.ks_proxy,
+        KS_OS_REPOS                 = local.ks_os_repos,
+        KS_APPSTREAM_REPOS          = local.ks_appstream_repos,
+        KS_EXTRAS_REPOS             = local.ks_extras_repos,
         TEMPLATE_USER_PASSWORD_HASH = var.template_user_password_hash
       }
     )
