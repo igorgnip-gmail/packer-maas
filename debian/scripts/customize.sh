@@ -106,6 +106,21 @@ apt-get install --no-install-recommends -y \
 mkdir -p /var/log/journal
 systemd-tmpfiles --create --prefix /var/log/journal || true
 
+# raid arrays created by a kernel newer than this image's own can carry a
+# logical_block_size superblock field this kernel's md driver doesn't
+# understand and refuses to assemble. check_new_feature=0 on the
+# assembling side is the documented bypass (Documentation/admin-guide/md.rst).
+mkdir -p /usr/lib/modprobe.d
+printf '%s\n' 'options md-mod check_new_feature=0' > /usr/lib/modprobe.d/md-check-new-feature.conf
+
+# Fleet-wide GRUB preference: visible timeout+menu, not instant/silent.
+# grub-cloud's own /etc/default/grub.d/*.cfg can override the main file's
+# GRUB_TIMEOUT, so both are touched.
+sed -i -E 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=5/; s/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=menu/' /etc/default/grub
+grep -q '^GRUB_TIMEOUT_STYLE=' /etc/default/grub || echo 'GRUB_TIMEOUT_STYLE=menu' >> /etc/default/grub
+[ -f /etc/default/grub.d/15_timeout.cfg ] && sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=5/' /etc/default/grub.d/15_timeout.cfg
+update-grub
+
 # cloud-init's own SSH module manages /etc/ssh/sshd_config.d/50-cloud-init.conf
 # and rewrites it based on the ssh_pwauth cloud-config directive -- confirmed
 # live 2026-08-31 that leaving this unset produces PasswordAuthentication yes

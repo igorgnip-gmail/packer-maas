@@ -43,6 +43,7 @@ for f in resolv.conf fstab; do
 done
 
 rm -f /etc/sysconfig/network-scripts/ifcfg-[^lo]*
+rm -f /etc/NetworkManager/system-connections/*
 
 # Kickstart copies install boot options. Serial is turned on for logging with
 # Packer which disables console output. Disable it so console output is shown
@@ -182,6 +183,15 @@ sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' /etc/ssh/sshd_config
 mkdir -p /etc/ssh/sshd_config.d
 printf '%s\n' 'PermitRootLogin prohibit-password' > /etc/ssh/sshd_config.d/root.conf
 printf '%s\n' 'PasswordAuthentication no' > /etc/ssh/sshd_config.d/users.conf
+
+# SELinux: force the relabel now, using this chroot's own guest kernel
+# (not curtin's forge-side chroot at deploy time) -- avoids shipping an
+# image that needs a first-boot autorelabel-then-self-reboot cycle
+# (confirmed live 2026-09-07: journalctl -b -1 on a freshly curtin-
+# deployed target showed selinux-autorelabel running for ~30s then a
+# clean systemd-initiated reboot, triggered by /.autorelabel).
+fixfiles -T 0 restore
+rm -f /.autorelabel
 %end
 
 %packages --ignoremissing
@@ -196,12 +206,18 @@ rsync
 tar
 patch
 yum-utils
-# grub2-efi-x64 ships grub signed for UEFI secure boot. If grub2-efi-x64-modules
-# is installed grub will be generated on deployment and unsigned which breaks
-# UEFI secure boot.
-grub2-efi-x64
+# --ignoremissing + wildcards (not hardcoded grub2-efi-x64/shim-x64) so
+# this same %packages list works on both amd64 (grub2-efi-x64, shim-x64)
+# and arm64 (grub2-efi-aa64, shim-aa64) without an arch conditional --
+# same approach rocky9/ol10's kickstarts already use. This fleet doesn't
+# enforce UEFI secure boot (update_nvram: False, relying on the ESP's
+# plain fallback path), so grub2-efi-*-modules generating an unsigned
+# grub on deployment isn't a concern here.
+grub2-pc
+grub2-efi-*
+shim-*
+grub2-efi-*-modules
 efibootmgr
-shim-x64
 dosfstools
 lvm2
 mdadm

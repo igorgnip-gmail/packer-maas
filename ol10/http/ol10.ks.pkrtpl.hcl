@@ -41,6 +41,7 @@ for f in resolv.conf fstab; do
 done
 
 rm -f /etc/sysconfig/network-scripts/ifcfg-[^lo]*
+rm -f /etc/NetworkManager/system-connections/*
 
 # Kickstart copies install boot options. Serial is turned on for logging with
 # Packer which disables console output. Disable it so console output is shown
@@ -180,6 +181,15 @@ sed -i '1i Include /etc/ssh/sshd_config.d/*.conf' /etc/ssh/sshd_config
 mkdir -p /etc/ssh/sshd_config.d
 printf '%s\n' 'PermitRootLogin prohibit-password' > /etc/ssh/sshd_config.d/root.conf
 printf '%s\n' 'PasswordAuthentication no' > /etc/ssh/sshd_config.d/users.conf
+
+# SELinux: force the relabel now, using this chroot's own guest kernel
+# (not curtin's forge-side chroot at deploy time) -- avoids shipping an
+# image that needs a first-boot autorelabel-then-self-reboot cycle
+# (confirmed live 2026-09-07: journalctl -b -1 on a freshly curtin-
+# deployed target showed selinux-autorelabel running for ~30s then a
+# clean systemd-initiated reboot, triggered by /.autorelabel).
+fixfiles -T 0 restore
+rm -f /.autorelabel
 %end
 
 # --ignoremissing + wildcards (not ol9's hardcoded grub2-efi-x64/shim-x64)

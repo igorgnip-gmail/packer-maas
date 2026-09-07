@@ -14,26 +14,65 @@ variable "filename" {
   description = "The filename of the tarball to produce"
 }
 
-variable "ol9_iso_url" {
-  type    = string
-  default = "https://yum.oracle.com/ISOS/OracleLinux/OL9/u2/x86_64/OracleLinux-R9-U2-x86_64-boot.iso"
+# NOT a straight ${architecture} substitution like rocky9/alma9 -- the
+# arm64 boot ISO Oracle publishes for OL9 only exists in a UEK
+# (Unbreakable Enterprise Kernel) variant ("-boot-uek.iso"), no plain
+# "-boot.iso" equivalent on that arch (confirmed live: 404 on the plain
+# path, boot-uek.iso the only boot ISO listed in Oracle's own checksum
+# manifest for aarch64). amd64 keeps the plain boot ISO (RHCK default).
+# Same situation as ol10, ported here the same way.
+locals {
+  iso_url = {
+    "amd64" = "https://yum.oracle.com/ISOS/OracleLinux/OL9/u2/x86_64/OracleLinux-R9-U2-x86_64-boot.iso"
+    "arm64" = "https://yum.oracle.com/ISOS/OracleLinux/OL9/u2/aarch64/OracleLinux-R9-U2-aarch64-boot-uek.iso"
+  }
+  iso_checksum_path = {
+    "amd64" = "https://linux.oracle.com/security/gpg/checksum/OracleLinux-R9-U2-Server-x86_64.checksum"
+    "arm64" = "https://linux.oracle.com/security/gpg/checksum/OracleLinux-R9-U2-Server-aarch64.checksum"
+  }
+  qemu_arch_dir = {
+    "amd64" = "x86_64"
+    "arm64" = "aarch64"
+  }
+  ks_proxy           = var.ks_proxy != "" ? "--proxy=${var.ks_proxy}" : ""
+  ks_os_repos        = var.ks_mirror != "" ? "--url=${var.ks_mirror}/baseos/latest/${lookup(local.qemu_arch_dir, var.architecture, "")}" : "--url='https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/${lookup(local.qemu_arch_dir, var.architecture, "")}'"
+  ks_appstream_repos = var.ks_mirror != "" ? "--baseurl=${var.ks_mirror}/appstream/${lookup(local.qemu_arch_dir, var.architecture, "")}/" : "--baseurl='https://yum.oracle.com/repo/OracleLinux/OL9/appstream/${lookup(local.qemu_arch_dir, var.architecture, "")}/'"
+
+  # Same qemu machine/cpu/UEFI lookup pattern as rocky9.pkr.hcl/ol10.pkr.hcl.
+  uefi_imp = {
+    "x86_64"  = "OVMF"
+    "aarch64" = "AAVMF"
+  }
+  uefi_sfx = {
+    "x86_64"  = "${var.ovmf_suffix}"
+    "aarch64" = ""
+  }
+  qemu_machine = {
+    "x86_64"  = "accel=kvm"
+    "aarch64" = var.host_is_arm ? "virt,accel=kvm" : "virt"
+  }
+  qemu_cpu = {
+    "x86_64"  = "host"
+    "aarch64" = var.host_is_arm ? "host" : "cortex-a72"
+  }
 }
 
-variable "ol9_sha256sum_path" {
-  type    = string
-  default = "https://linux.oracle.com/security/gpg/checksum/OracleLinux-R9-U2-Server-x86_64.checksum"
+variable "architecture" {
+  type        = string
+  default     = "amd64"
+  description = "The architecture to build the image for (amd64 or arm64)"
 }
 
-# use can use "--url" to specify the exact url for os repo
-variable "ks_os_repos" {
-  type    = string
-  default = "--url='https://yum.oracle.com/repo/OracleLinux/OL9/baseos/latest/x86_64'"
+variable "host_is_arm" {
+  type        = bool
+  default     = false
+  description = "The host architecture is aarch64"
 }
 
-# Use --baseurl to specify the exact url for AppStream repo
-variable "ks_appstream_repos" {
-  type    = string
-  default = "--baseurl='https://yum.oracle.com/repo/OracleLinux/OL9/appstream/x86_64/'"
+variable "ovmf_suffix" {
+  type        = string
+  default     = ""
+  description = "Suffix for OVMF CODE and VARS files. Newer systems such as Noble use _4M."
 }
 
 variable ks_proxy {
@@ -58,12 +97,6 @@ variable "timeout" {
   description = "Timeout for building the image"
 }
 
-locals {
-  ks_proxy           = var.ks_proxy != "" ? "--proxy=${var.ks_proxy}" : ""
-  ks_os_repos        = var.ks_mirror != "" ? "--url=${var.ks_mirror}/baseos/latest/x86_64" : var.ks_os_repos
-  ks_appstream_repos = var.ks_mirror != "" ? "--baseurl=${var.ks_mirror}/appstream/x86_64/" : var.ks_appstream_repos
-}
-
 source "qemu" "ol9" {
   # NOT the isolinux/syslinux <tab>-then-enter convention this file
   # used to have (that only worked under legacy BIOS -- Oracle's ISO
@@ -85,14 +118,13 @@ source "qemu" "ol9" {
   disk_size       = "4G"
   format          = "qcow2"
   headless        = true
-  iso_checksum    = "file:${var.ol9_sha256sum_path}"
-  iso_url         = var.ol9_iso_url
-  iso_target_path = "packer_cache/ol9-boot.iso"
+  iso_checksum    = "file:${lookup(local.iso_checksum_path, var.architecture, "")}"
+  iso_url         = lookup(local.iso_url, var.architecture, "")
+  iso_target_path = "packer_cache/ol9-${var.architecture}-boot.iso"
   memory          = 2048
+  qemu_binary     = "qemu-system-${lookup(local.qemu_arch_dir, var.architecture, "")}"
   # See rocky9.pkr.hcl for why: -serial stdio produces zero output when
-  # packer runs backgrounded/non-interactive (no controlling tty). Note:
-  # this template has no architecture/host_is_arm variable at all --
-  # amd64 (-cpu host) only, unlike rocky9/alma8/alma9.
+  # packer runs backgrounded/non-interactive (no controlling tty).
   #
   # 2026-08-31: added OVMF (UEFI) pflash drives -- this build previously
   # ran under plain legacy BIOS (no firmware drives at all), which means
@@ -127,14 +159,14 @@ source "qemu" "ol9" {
     ["-netdev", "user,id=net0"],
     ["-device", "virtio-blk-pci,drive=drive0,bootindex=0"],
     ["-device", "virtio-blk-pci,drive=cdrom0,bootindex=1"],
-    ["-machine", "accel=kvm"],
-    ["-cpu", "host"],
+    ["-machine", "${lookup(local.qemu_machine, lookup(local.qemu_arch_dir, var.architecture, ""), "")}"],
+    ["-cpu", "${lookup(local.qemu_cpu, lookup(local.qemu_arch_dir, var.architecture, ""), "")}"],
     ["-device", "virtio-gpu-pci"],
     ["-global", "driver=cfi.pflash01,property=secure,value=off"],
-    ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=OVMF_CODE.fd"],
-    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=OVMF_VARS.fd"],
+    ["-drive", "if=pflash,format=raw,unit=0,id=ovmf_code,readonly=on,file=/usr/share/${lookup(local.uefi_imp, lookup(local.qemu_arch_dir, var.architecture, ""), "")}/${lookup(local.uefi_imp, lookup(local.qemu_arch_dir, var.architecture, ""), "")}_CODE${lookup(local.uefi_sfx, lookup(local.qemu_arch_dir, var.architecture, ""), "")}.fd"],
+    ["-drive", "if=pflash,format=raw,unit=1,id=ovmf_vars,file=${lookup(local.qemu_arch_dir, var.architecture, "")}_VARS.fd"],
     ["-drive", "file=output-ol9/packer-ol9,if=none,id=drive0,cache=writeback,discard=ignore,format=qcow2"],
-    ["-drive", "file=packer_cache/ol9-boot.iso,if=none,id=cdrom0,media=cdrom"]
+    ["-drive", "file=packer_cache/ol9-${var.architecture}-boot.iso,if=none,id=cdrom0,media=cdrom"]
   ]
   shutdown_timeout = var.timeout
   http_content = {

@@ -212,42 +212,7 @@ build {
   }
 }
 
-# ============================================================
-# OPEN QUESTIONS -- this template has NEVER been build-tested.
-# Copied/adapted from ol9 (structure) and rocky9 (arch handling), plus
-# live-verified (curl) ISO/checksum/repo URLs only. Remove this block
-# once resolved.
-#
-# 1. UEK vs RHCK kernel selection on amd64: the user's own direction is
-#    "for amd64 we use redhat [RHCK] as default". Unverified whether
-#    OL10's plain boot.iso already defaults to RHCK on install, or
-#    whether its boot menu needs a specific (non-default) entry picked --
-#    would need an actual boot-menu inspection (screenshot/serial capture
-#    of the ISO's syslinux/grub menu) to confirm. If a specific entry
-#    needs picking, boot_command above needs real key-navigation
-#    (arrow/down keys) like rocky9.pkr.hcl's does, not the simple
-#    <up><tab>-append this file currently has (blindly copied from ol9,
-#    which never had this ambiguity since it's amd64-only with one ISO).
-# 2. arm64 is UEK-only by Oracle's own ISO offering (no plain boot.iso
-#    published for aarch64) -- confirmed via the checksum manifest
-#    (OracleLinux-R10-U2-Server-aarch64.checksum lists dvd.iso and
-#    boot-uek.iso only, no boot.iso). Nothing to choose there; this is
-#    just a note that arm64 and amd64 will end up on DIFFERENT kernel
-#    families (UEK vs RHCK) by design, not a bug to fix.
-# 3. Kickstart %packages (http/ol10.ks.pkrtpl.hcl): ported ol9's
-#    hardcoded grub2-efi-x64/shim-x64/efibootmgr block as-is -- these
-#    are amd64-EFI-specific package NAMES that don't exist on aarch64
-#    (would need grub2-efi-aa64/shim-aa64 instead). rocky9's kickstart
-#    sidesteps this with wildcards (grub2-efi-*, shim-*, --ignoremissing
-#    on the %packages line) -- NOT yet applied here; ol10's kickstart
-#    still needs that same wildcard treatment before an arm64 build
-#    would work at all.
-# 4. No aarch64_VARS.fd/OVMF_VARS.fd generation step exists yet (rocky9's
-#    Makefile has one, see its OVMF_VARS.fd/SIZE_VARS.fd targets) --
-#    ol10's Makefile (not yet created) needs the same arch-aware
-#    Makefile rocky9 uses, not ol9's simple amd64-only one.
-# 5. Whether OL10's anaconda/kickstart syntax is compatible with OL9's
-#    kickstart verbatim (comps group names, package availability,
-#    %post script assumptions like grub.d layout) is entirely
-#    unverified -- no build has been attempted.
-# ============================================================
+# Resolved (was an OPEN QUESTIONS block): UEK vs RHCK kernel selection is
+# confirmed by design, not an open question -- amd64 defaults to RHCK,
+# arm64 to UEK (Oracle publishes no plain boot.iso for aarch64, UEK-only).
+# Both amd64 and arm64 have built successfully with this template.
