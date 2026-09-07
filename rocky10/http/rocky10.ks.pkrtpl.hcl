@@ -74,12 +74,10 @@ yum clean all
 echo "rockylinux ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/rockylinux
 chmod 440 /etc/sudoers.d/rockylinux
 
-# Fleet-wide shared password hash (same value ansible-bmc's
-# templates/curtin/3-extract.yaml.j2 sets via cloud-init at deploy time --
-# duplicated here so the account is usable from local KVM/console even
-# before cloud-init ever runs). Not yet a live deploy target (no sshd
-# hardening block in this file, unlike rocky8/9) -- add that too before
-# this template goes into active use.
+# Fleet-wide shared password hash (same value cloud-init sets at deploy
+# time -- duplicated here so the account is usable from local KVM/
+# console even before cloud-init ever runs). No sshd hardening block in
+# this file yet, unlike rocky8/9.
 TEMPLATE_USER_PASSWORD_HASH='${TEMPLATE_USER_PASSWORD_HASH}'
 if [ -n "$TEMPLATE_USER_PASSWORD_HASH" ]; then
     echo "rockylinux:$TEMPLATE_USER_PASSWORD_HASH" | chpasswd -e

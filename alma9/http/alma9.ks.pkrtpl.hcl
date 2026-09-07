@@ -74,10 +74,9 @@ yum clean all
 echo "almalinux ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/almalinux
 chmod 440 /etc/sudoers.d/almalinux
 
-# Fleet-wide shared password hash (same value ansible-bmc's
-# templates/curtin/3-extract.yaml.j2 sets via cloud-init at deploy time --
-# duplicated here so the account is usable from local KVM/console even
-# before cloud-init ever runs). SSH access stays key-only regardless (see
+# Fleet-wide shared password hash (same value cloud-init sets at deploy
+# time -- duplicated here so the account is usable from local KVM/
+# console even before cloud-init ever runs). SSH access stays key-only regardless (see
 # the sshd hardening block below) -- this is purely a local-console
 # fallback, not a remote access path.
 TEMPLATE_USER_PASSWORD_HASH='${TEMPLATE_USER_PASSWORD_HASH}'
