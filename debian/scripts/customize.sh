@@ -30,12 +30,14 @@ else
 fi
 apt-get update
 
-# intel-microcode: cheap, concrete hypothesis for a consumer/bleeding-edge
-# CPU under a server-oriented distro build -- if the image's default
-# microcode predates that CPU's steppings, symptoms could range from
-# silent hangs to outright boot failure. Costs nothing to include even if
-# this isn't the actual cause.
-apt-get install --no-install-recommends -y intel-microcode
+# intel-microcode/amd64-microcode: cheap, concrete hypothesis for a
+# consumer/bleeding-edge CPU under a server-oriented distro build -- if
+# the image's default microcode predates that CPU's steppings, symptoms
+# could range from silent hangs to outright boot failure. Costs nothing
+# to include both regardless of which vendor's CPU actually deploys this
+# image -- apt/dpkg's own postinst for whichever one doesn't match the
+# running CPU is a no-op, not an error.
+apt-get install --no-install-recommends -y intel-microcode amd64-microcode
 
 # NIC firmware: some drivers (notably Intel ice/E810) require an external
 # DDP package or the driver silently runs in a degraded mode -- link

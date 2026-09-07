@@ -119,6 +119,26 @@ lvm2
 mdadm
 device-mapper-multipath
 iscsi-initiator-utils
+strace
+vim-common
+pciutils
+usbutils
+ethtool
+dmidecode
+lshw
+smartmontools
+ipmitool
+# Explicit rather than relying on it being pulled in as a weak/recommended
+# dependency of the kernel package -- makes NIC/storage-controller firmware
+# availability an explicit guarantee instead of an implicit side effect
+# that could silently regress if install options ever change.
+linux-firmware
+# Early-load mechanism for CPU microcode updates (Intel and AMD) --
+# the actual firmware blobs (including amd-ucode) are already pulled
+# in as a linux-firmware dependency; this is the separate loader/
+# service package, not implied by linux-firmware alone. Explicit for
+# the same reason as linux-firmware itself above.
+microcode_ctl
 -plymouth
 # Remove ALSA firmware
 -a*-firmware

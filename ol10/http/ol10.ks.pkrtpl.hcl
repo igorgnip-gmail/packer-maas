@@ -218,6 +218,12 @@ lshw
 smartmontools
 ipmitool
 linux-firmware
+# Early-load mechanism for CPU microcode updates (Intel and AMD) --
+# the actual firmware blobs (including amd-ucode) are already pulled
+# in as a linux-firmware dependency; this is the separate loader/
+# service package, not implied by linux-firmware alone. Explicit for
+# the same reason as linux-firmware itself above.
+microcode_ctl
 -plymouth
 -a*-firmware
 -i*-firmware
