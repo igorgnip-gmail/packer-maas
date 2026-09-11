@@ -27,7 +27,7 @@ variable ks_mirror {
 variable template_user_password_hash {
   type        = string
   default     = "${env("TEMPLATE_USER_PASSWORD_HASH")}"
-  description = "SHA-512 crypt hash for the local fleet-standard user's console/KVM-fallback password. Never hardcode this in the template -- set the TEMPLATE_USER_PASSWORD_HASH env var before building. Empty by default (kickstart's chpasswd -e is skipped if unset, leaving the account locked)."
+  description = "SHA-512 crypt hash for the local fleet-standard user's console/KVM-fallback password. Priority: TEMPLATE_USER_PASSWORD_HASH env var, then ~/.hashed_password (shared build/deploy secret, never committed) if present, else empty -- kickstart's chpasswd -e is skipped if unset, leaving the account locked (no console fallback at all if the deploy-time password mechanism also fails)."
 }
 
 variable "timeout" {
@@ -55,6 +55,12 @@ variable "ovmf_suffix" {
 }
 
 locals {
+  # Priority: TEMPLATE_USER_PASSWORD_HASH env var, then ~/.hashed_password
+  # (shared build/deploy secret, never committed) if present, else empty
+  # -- kickstart's chpasswd -e is skipped if unset, leaving the account
+  # locked (no console fallback at all if the deploy-time password
+  # mechanism also fails).
+  template_user_password_hash = var.template_user_password_hash != "" ? var.template_user_password_hash : try(trimspace(file(pathexpand("~/.hashed_password"))), "")
   qemu_arch = {
     "x86_64"  = "x86_64"
     "aarch64" = "aarch64"
@@ -151,7 +157,7 @@ source "qemu" "rocky9" {
         KS_OS_REPOS              = local.ks_os_repos,
         KS_APPSTREAM_REPOS       = local.ks_appstream_repos,
         KS_EXTRAS_REPOS          = local.ks_extras_repos,
-        TEMPLATE_USER_PASSWORD_HASH = var.template_user_password_hash
+        TEMPLATE_USER_PASSWORD_HASH = local.template_user_password_hash
       }
     )
   }

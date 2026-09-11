@@ -22,6 +22,12 @@ variable "filename" {
 # manifest for aarch64). amd64 keeps the plain boot ISO (RHCK default).
 # Same situation as ol10, ported here the same way.
 locals {
+  # Priority: TEMPLATE_USER_PASSWORD_HASH env var, then ~/.hashed_password
+  # (shared build/deploy secret, never committed) if present, else empty
+  # -- kickstart's chpasswd -e is skipped if unset, leaving the account
+  # locked (no console fallback at all if the deploy-time password
+  # mechanism also fails).
+  template_user_password_hash = var.template_user_password_hash != "" ? var.template_user_password_hash : try(trimspace(file(pathexpand("~/.hashed_password"))), "")
   iso_url = {
     "amd64" = "https://yum.oracle.com/ISOS/OracleLinux/OL9/u2/x86_64/OracleLinux-R9-U2-x86_64-boot.iso"
     "arm64" = "https://yum.oracle.com/ISOS/OracleLinux/OL9/u2/aarch64/OracleLinux-R9-U2-aarch64-boot-uek.iso"
@@ -88,7 +94,7 @@ variable ks_mirror {
 variable template_user_password_hash {
   type        = string
   default     = "${env("TEMPLATE_USER_PASSWORD_HASH")}"
-  description = "SHA-512 crypt hash for the local fleet-standard user's console/KVM-fallback password. Never hardcode this in the template -- set the TEMPLATE_USER_PASSWORD_HASH env var before building. Empty by default (kickstart's chpasswd -e is skipped if unset, leaving the account locked)."
+  description = "SHA-512 crypt hash for the local fleet-standard user's console/KVM-fallback password. Priority: TEMPLATE_USER_PASSWORD_HASH env var, then ~/.hashed_password (shared build/deploy secret, never committed) if present, else empty -- kickstart's chpasswd -e is skipped if unset, leaving the account locked (no console fallback at all if the deploy-time password mechanism also fails)."
 }
 
 variable "timeout" {
@@ -133,10 +139,11 @@ source "qemu" "ol9" {
   # being installed via %packages (those got installed but never
   # correctly activated, since anaconda's own bootloader setup follows
   # the firmware it's actually running under). The real fleet this image
-  # deploys onto is UEFI-only -- curtin was effectively redoing
-  # bootloader setup at deploy time to correct for this mismatch, wasted
-  # and fragile work compared to the image just being UEFI-correct from
-  # the start (same fix as rocky9/alma9/debian, which never had this bug).
+  # deploys onto is UEFI-only -- MAAS's own deploy process was effectively
+  # redoing bootloader setup at deploy time to correct for this mismatch,
+  # wasted and fragile work compared to the image just being UEFI-correct
+  # from the start (same fix as rocky9/alma9/debian, which never had this
+  # bug).
   #
   # Explicit disk/cdrom/network/keyboard devices are REQUIRED alongside
   # OVMF, not optional -- found live while building ol10.pkr.hcl (same
@@ -175,7 +182,7 @@ source "qemu" "ol9" {
         KS_PROXY                    = local.ks_proxy,
         KS_OS_REPOS                 = local.ks_os_repos,
         KS_APPSTREAM_REPOS          = local.ks_appstream_repos,
-        TEMPLATE_USER_PASSWORD_HASH = var.template_user_password_hash
+        TEMPLATE_USER_PASSWORD_HASH = local.template_user_password_hash
       }
     )
   }

@@ -24,6 +24,12 @@ variable "filename" {
 # explicit non-default entry picked to actually get RHCK, or whether
 # plain boot.iso already defaults to it -- unverified, never test-booted).
 locals {
+  # Priority: TEMPLATE_USER_PASSWORD_HASH env var, then ~/.hashed_password
+  # (shared build/deploy secret, never committed) if present, else empty
+  # -- kickstart's chpasswd -e is skipped if unset, leaving the account
+  # locked (no console fallback at all if the deploy-time password
+  # mechanism also fails).
+  template_user_password_hash = var.template_user_password_hash != "" ? var.template_user_password_hash : try(trimspace(file(pathexpand("~/.hashed_password"))), "")
   iso_url = {
     "amd64" = "https://yum.oracle.com/ISOS/OracleLinux/OL10/u2/x86_64/OracleLinux-R10-U2-x86_64-boot.iso"
     "arm64" = "https://yum.oracle.com/ISOS/OracleLinux/OL10/u2/aarch64/OracleLinux-R10-U2-aarch64-boot-uek.iso"
@@ -106,7 +112,7 @@ variable ks_mirror {
 variable template_user_password_hash {
   type        = string
   default     = "${env("TEMPLATE_USER_PASSWORD_HASH")}"
-  description = "SHA-512 crypt hash for the local fleet-standard user's console/KVM-fallback password. Never hardcode this in the template -- set the TEMPLATE_USER_PASSWORD_HASH env var before building. Empty by default (kickstart's chpasswd -e is skipped if unset, leaving the account locked)."
+  description = "SHA-512 crypt hash for the local fleet-standard user's console/KVM-fallback password. Priority: TEMPLATE_USER_PASSWORD_HASH env var, then ~/.hashed_password (shared build/deploy secret, never committed) if present, else empty -- kickstart's chpasswd -e is skipped if unset, leaving the account locked (no console fallback at all if the deploy-time password mechanism also fails)."
 }
 
 variable "timeout" {
@@ -191,7 +197,7 @@ source "qemu" "ol10" {
         KS_PROXY                    = local.ks_proxy,
         KS_OS_REPOS                 = local.ks_os_repos,
         KS_APPSTREAM_REPOS          = local.ks_appstream_repos,
-        TEMPLATE_USER_PASSWORD_HASH = var.template_user_password_hash
+        TEMPLATE_USER_PASSWORD_HASH = local.template_user_password_hash
       }
     )
   }
