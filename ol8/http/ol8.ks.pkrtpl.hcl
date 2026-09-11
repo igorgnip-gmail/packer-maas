@@ -27,7 +27,7 @@ zerombr
 clearpart --all --initlabel
 part / --size=1 --grow --asprimary --fstype=ext4
 
-%post --erroronfail
+%post --erroronfail --log=/var/log/kickstart_post.log
 # workaround anaconda requirements and clear root password
 passwd -d root
 passwd -l root
