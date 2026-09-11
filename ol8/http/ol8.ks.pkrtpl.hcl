@@ -91,6 +91,22 @@ dnf clean all
 # `dnf update cloud-init` freely afterward per the same approved
 # judgment call ("if user updates cloud-init it will be either fixed or
 # at least network would already be setup [by the time it re-runs]").
+#
+# Kept as a %post safety net (belt-and-suspenders with the %packages
+# pin above, not redundant): %packages --ignoremissing means if the
+# pinned NVRA ever stops resolving (repo prunes the old build, typo,
+# etc.) anaconda silently skips cloud-init entirely rather than failing
+# the build -- a host with NO cloud-init at all is worse than one on
+# the broken version (guaranteed unreachable, zero chance of ever
+# self-healing via a later dnf update). Three-tier fallback, each only
+# runs if the previous one didn't already leave the right thing
+# installed: downgrade (works if a newer version is present),
+# else install that exact URL directly (works if cloud-init is missing
+# entirely), else whatever "cloud-init" the repo currently has as
+# latest (last resort so the box is never left with zero cloud-init).
+# Output captured via this %post's own --log=/var/log/kickstart_post.log.
+CLOUD_INIT_URL='https://yum.oracle.com/repo/OracleLinux/OL8/appstream/x86_64/getPackage/cloud-init-23.4-7.0.3.el8_10.11.noarch.rpm'
+dnf downgrade -y "$CLOUD_INIT_URL" || dnf install -y "$CLOUD_INIT_URL" || dnf install -y cloud-init
 
 # Oracle Linux 8's own cloud-init package (even the downgraded,
 # network-fixed build above) still disables systemd's reliable
