@@ -5,17 +5,30 @@ include ../scripts/check.mk
 PACKER ?= packer
 PACKER_LOG ?= 0
 TIMEOUT ?= 1h
+ARCH ?= x86_64
 
-export PACKER_LOG
+# Detect if running on ARM host
+ifeq ($(shell uname -m),aarch64)
+    HOST_IS_ARM = true
+else
+    HOST_IS_ARM = false
+endif
 
-# 2026-08-31: switched from legacy BIOS to UEFI (OVMF) -- see ol9's
-# Makefile/ol8.pkr.hcl's own qemuargs comment for why (same fix, same
-# root cause). Not yet a live deploy target, but fixed alongside ol9
-# for consistency before it becomes one.
 ifeq ($(wildcard /usr/share/OVMF/OVMF_CODE.fd),)
 	OVMF_SFX ?= _4M
 else
 	OVMF_SFX ?=
+endif
+
+export PACKER_LOG
+
+# Fallback -- ol8.pkr.hcl's own variable "architecture" expects
+# amd64/arm64 (not x86_64/aarch64), matching rocky8/ol9's convention.
+ifeq ($(strip $(ARCH)),x86_64)
+	ARCH = amd64
+endif
+ifeq ($(strip $(ARCH)),aarch64)
+	ARCH = arm64
 endif
 
 .PHONY: all clean
@@ -32,13 +45,22 @@ format:
 	packer fmt .
 
 OVMF_VARS.fd: /usr/share/OVMF/OVMF_VARS${OVMF_SFX}.fd
-	cp -v $< OVMF_VARS.fd
+	cp -v $< $(if $(filter arm64,$(ARCH)),aarch64,x86_64)_VARS.fd
 
-OVMF_CODE.fd: /usr/share/OVMF/OVMF_CODE${OVMF_SFX}.fd
-	cp -v $< OVMF_CODE.fd
+SIZE_VARS.fd:
+ifeq ($(strip $(ARCH)),arm64)
+	truncate -s 64m aarch64_VARS.fd
+else
+	truncate -s 2m x86_64_VARS.fd
+endif
 
-ol8.tar.gz: check-deps clean OVMF_VARS.fd OVMF_CODE.fd
-	${PACKER} init ol8.pkr.hcl && ${PACKER} build -var timeout=${TIMEOUT} ol8.pkr.hcl
+ol8.tar.gz: check-deps clean OVMF_VARS.fd SIZE_VARS.fd
+	${PACKER} init ol8.pkr.hcl && ${PACKER} build \
+		-var architecture=${ARCH} \
+		-var host_is_arm=${HOST_IS_ARM} \
+		-var timeout=${TIMEOUT} \
+		-var ovmf_suffix=${OVMF_SFX} \
+		ol8.pkr.hcl
 
 clean:
 	${RM} -rf *.fd output-ol8 ol8.tar.gz
