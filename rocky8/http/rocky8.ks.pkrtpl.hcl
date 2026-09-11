@@ -214,19 +214,39 @@ printf '%s\n' 'PermitRootLogin prohibit-password' > /etc/ssh/sshd_config.d/root.
 printf '%s\n' 'PasswordAuthentication no' > /etc/ssh/sshd_config.d/users.conf
 
 # SELinux: force the relabel now, using this chroot's own guest kernel
-# (not curtin's forge-side chroot at deploy time) -- avoids shipping an
+# (not the deploy-time chroot's kernel) -- avoids shipping an
 # image that needs a first-boot autorelabel-then-self-reboot cycle
-# (confirmed live 2026-09-07: journalctl -b -1 on a freshly curtin-
+# (confirmed live 2026-09-07: journalctl -b -1 on a freshly
 # deployed target showed selinux-autorelabel running for ~30s then a
 # clean systemd-initiated reboot, triggered by /.autorelabel).
 fixfiles -T 0 restore
 rm -f /.autorelabel
+
+# The python3.12 package installed below (%packages) registers itself as
+# an `alternatives` slave for the bare `python3` command at a much
+# higher priority than the OS-default python3.6 (confirmed via `rpm -qp
+# --scripts python3.12*.rpm`: `alternatives --install /usr/bin/python3
+# python3 /usr/bin/python3.12 31200 ...`), which in `auto` mode silently
+# makes python3.12 the system-wide default the instant it's installed.
+# We only want python3.12 available at its own versioned path for
+# post-deploy configuration management to target explicitly -- not to
+# change what every other script/tool on this OS gets when it runs
+# `python3`.
+# Pin the alternative back to the distro's own default immediately after
+# install so EL8's normal python3 (3.6, matching every other unmodified
+# EL8 system) is untouched.
+alternatives --set python3 /usr/bin/python3.6
 %end
 
 %packages --ignoremissing
 @Core
 bash-completion
 cloud-init
+# EL8's stock python3 is 3.6, too old for modern automation-tool module
+# payloads (which need 3.7+ for `from __future__ import annotations`).
+# Gives post-deploy configuration management a modern interpreter to
+# target explicitly, without changing the OS default.
+python3.12
 cloud-utils-growpart
 rsync
 tar
