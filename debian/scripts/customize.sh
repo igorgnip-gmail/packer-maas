@@ -7,10 +7,10 @@
 # avoids adding anything that isn't itself a diagnostic aid -- every extra
 # package/config here is one more variable in that diagnosis.
 #
-# User/sudo setup is NOT handled here: the deploying curtin config
+# User/sudo setup is NOT handled here: MAAS's own deploy-time config
 # creates the account with full NOPASSWD sudo at install time, same as
 # every other target this pipeline deploys. SSH key injection is
-# likewise curtin's job, not this image's.
+# likewise deploy-time's job, not this image's.
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -36,8 +36,16 @@ apt-get update
 # could range from silent hangs to outright boot failure. Costs nothing
 # to include both regardless of which vendor's CPU actually deploys this
 # image -- apt/dpkg's own postinst for whichever one doesn't match the
-# running CPU is a no-op, not an error.
-apt-get install --no-install-recommends -y intel-microcode amd64-microcode
+# running CPU is a no-op, not an error. That "costs nothing" assumption
+# only holds on amd64 though -- these are x86-only packages and simply
+# don't exist in the arm64 repo at all ("no installation candidate" is
+# a hard apt failure, not a no-op), confirmed live 2026-09-10 when this
+# script ran on arm64 for the first time (the Makefile had never been
+# passing -var customize_script until that same session, so this gap
+# went uncaught until then).
+if [ "$(dpkg --print-architecture)" = "amd64" ]; then
+    apt-get install --no-install-recommends -y intel-microcode amd64-microcode
+fi
 
 # NIC firmware: some drivers (notably Intel ice/E810) require an external
 # DDP package or the driver silently runs in a degraded mode -- link
@@ -78,8 +86,8 @@ apt-get install --no-install-recommends -y \
     firmware-misc-nonfree \
     firmware-intel-graphics
 
-# mdadm: curtin's builtin curthooks unconditionally tries to write
-# /etc/mdadm/mdadm.conf into the target during the curthooks phase
+# mdadm: MAAS's own deploy process unconditionally tries to write
+# /etc/mdadm/mdadm.conf into the target during its install phase
 # (regardless of whether this specific target actually uses raid --
 # confirmed live: a plain single/dual-disk, no-raid install still hit
 # "Mdadm configuration found, enabling service" then crashed with

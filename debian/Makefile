@@ -82,6 +82,7 @@ debian: check-deps clean OVMF_CODE.fd OVMF_VARS.fd SIZE_CODE.fd SIZE_VARS.fd
 		-var ovmf_suffix=${OVMF_SFX} \
 		-var boot_mode=${BOOT} \
 		-var host_is_arm=${HOST_IS_ARM} \
+		-var customize_script=scripts/customize.sh \
 		-var timeout=${TIMEOUT} .
 
 clean:
