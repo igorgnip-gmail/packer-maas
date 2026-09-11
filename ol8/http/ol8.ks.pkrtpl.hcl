@@ -72,15 +72,25 @@ dnf clean all
 # Confirmed via a binary diff across every ol8_appstream build back to
 # 22.1: 23.4-7.0.3.el8_10.11 (one point-release earlier, same 23.4
 # upstream version) still only has util.load_file() referenced anywhere
-# in the package -- last known-good build. Downgrading here (noarch,
-# same package works on both arches) bakes in a working cloud-init at
-# image-build time rather than depending on Oracle's currently-latest
-# repo build. Deliberately NOT version-locked -- if this ships in a
-# later dnf update, real fixed data source should apply fine again by
-# then per an approved user judgment call (2026-09-11): "if user
-# updates cloud-init it will be either fixed or at least network would
-# already be setup [by the time it re-runs]".
-dnf downgrade -y https://yum.oracle.com/repo/OracleLinux/OL8/appstream/x86_64/getPackage/cloud-init-23.4-7.0.3.el8_10.11.noarch.rpm
+# in the package -- last known-good build.
+#
+# CORRECTION 2026-09-11: originally fixed here via `dnf downgrade -y
+# <url>` in %post. A rebuild after that fix still shipped the broken
+# 7.0.4.el8_10.12 (confirmed by extracting the built tarball's own RPM
+# database directly) despite the exact same dnf downgrade command
+# reproducing cleanly (exit 0) in an isolated oraclelinux:8 container --
+# something about the real kickstart %post execution environment was
+# preventing it from taking effect, not yet root-caused. Moved to
+# pinning the exact NVRA in %packages instead (confirmed present in
+# ol8_appstream's own repo metadata, not just fetchable by direct RPM
+# URL -- `dnf list --showduplicates cloud-init` lists it), so anaconda's
+# main package transaction installs the correct build directly rather
+# than installing latest-then-downgrading. See `cloud-init-23.4-*` below.
+# Same non-version-locking intent as before still holds: pinning here
+# only affects image-build time, a running deployed host can still
+# `dnf update cloud-init` freely afterward per the same approved
+# judgment call ("if user updates cloud-init it will be either fixed or
+# at least network would already be setup [by the time it re-runs]").
 
 # Oracle Linux 8's own cloud-init package (even the downgraded,
 # network-fixed build above) still disables systemd's reliable
@@ -253,16 +263,18 @@ alternatives --set python3 /usr/bin/python3.6
 %packages --ignoremissing
 @core
 bash-completion
-cloud-init
+# Pinned exact NVRA, not plain "cloud-init" -- see the long comment in
+# %post above. Confirmed present in the repo's own metadata via
+# `dnf list --showduplicates`.
+cloud-init-23.4-7.0.3.el8_10.11.noarch
 # EL8's stock python3 is 3.6, too old for modern automation-tool module
 # payloads (which need 3.7+ for `from __future__ import annotations`).
 # Gives post-deploy configuration management a modern interpreter to
-# target explicitly, without changing the OS default. CONFIRMED
-# 2026-09-08 this line is NOT the cause of a separate, transient
-# empty-install failure seen on OL8 (the byte-identical original
-# kickstart, with this line absent entirely, reproduced the exact same
-# failure against Oracle's own mirror) -- see ISSUES.md:
-# ol8-transient-build-failure.
+# target explicitly, without changing the OS default. Confirmed this
+# line is not the cause of a separate, transient empty-install failure
+# seen on OL8 (the byte-identical original kickstart, with this line
+# absent entirely, reproduced the exact same failure against Oracle's
+# own mirror).
 python3.12
 # cloud-init only requires python3-oauthlib with MAAS. As such upstream
 # removed this dependency.
