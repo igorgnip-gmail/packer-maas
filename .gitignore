@@ -13,6 +13,8 @@ packer_cache
 *.qcow2
 *_VARS.fd
 *_CODE.fd
+*.log
+*.lock
 ubuntu/packages/*.deb
 ubuntu/packages/*.bin
 ubuntu/packages/*.tar.gz
