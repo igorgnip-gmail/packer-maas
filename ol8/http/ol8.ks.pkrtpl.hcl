@@ -53,6 +53,46 @@ sed -i 's/GRUB_ENABLE_BLSCFG=.*/GRUB_ENABLE_BLSCFG=false/g' /etc/default/grub
 
 dnf clean all
 
+# Broken SSH host-key generation and the target going unreachable after
+# its post-install reboot are both symptoms of the SAME root cause,
+# confirmed via a live deploy + journalctl traceback: Oracle's cloud-init-23.4-
+# 7.0.4.el8_10.12 build (the newest in ol8_appstream as of this date)
+# backported a newer upstream cloudinit/net/sysconfig.py that calls
+# util.load_text_file(), without backporting the matching util.py --
+# that function does not exist there (only the older load_file() does),
+# so it's a genuine Oracle packaging regression, not an upstream
+# cloud-init bug. AttributeError fires deterministically inside
+# sysconfig.py's _render_dns() whenever a resolv.conf already exists at
+# render time, which crashes the WHOLE 'init' stage (main_init() has no
+# try/except around apply_network_config()) before cloud_init_modules
+# (set_hostname, users-groups, etc.) ever run -- explains both the
+# never-generated SSH host keys (worked around below) and the target
+# going unreachable after its own post-install reboot (hostname/
+# network config silently never applied on the affected boot).
+# Confirmed via a binary diff across every ol8_appstream build back to
+# 22.1: 23.4-7.0.3.el8_10.11 (one point-release earlier, same 23.4
+# upstream version) still only has util.load_file() referenced anywhere
+# in the package -- last known-good build. Downgrading here (noarch,
+# same package works on both arches) bakes in a working cloud-init at
+# image-build time rather than depending on Oracle's currently-latest
+# repo build. Deliberately NOT version-locked -- if this ships in a
+# later dnf update, real fixed data source should apply fine again by
+# then per an approved user judgment call (2026-09-11): "if user
+# updates cloud-init it will be either fixed or at least network would
+# already be setup [by the time it re-runs]".
+dnf downgrade -y https://yum.oracle.com/repo/OracleLinux/OL8/appstream/x86_64/getPackage/cloud-init-23.4-7.0.3.el8_10.11.noarch.rpm
+
+# Oracle Linux 8's own cloud-init package (even the downgraded,
+# network-fixed build above) still disables systemd's reliable
+# sshd-keygen@.service in favor of doing SSH host-key generation
+# itself via its own ssh cc module -- keep this removal regardless of
+# the downgrade above, since it's a cheap, independent belt-and-braces
+# fix (rely on systemd's own well-tested keygen path instead of
+# cloud-init's for this one thing specifically). rocky8/alma9/etc.
+# don't need this (their own cloud-init packages don't disable it), so
+# this is deliberately OL8-only rather than a shared template change.
+rm -f /etc/systemd/system/sshd-keygen@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
+
 # Passwordless sudo for oraclelinux
 echo "oraclelinux ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/oraclelinux
 chmod 440 /etc/sudoers.d/oraclelinux
@@ -181,19 +221,49 @@ printf '%s\n' 'PermitRootLogin prohibit-password' > /etc/ssh/sshd_config.d/root.
 printf '%s\n' 'PasswordAuthentication no' > /etc/ssh/sshd_config.d/users.conf
 
 # SELinux: force the relabel now, using this chroot's own guest kernel
-# (not curtin's forge-side chroot at deploy time) -- avoids shipping an
+# (not the deploy-time chroot's kernel) -- avoids shipping an
 # image that needs a first-boot autorelabel-then-self-reboot cycle
-# (confirmed live 2026-09-07: journalctl -b -1 on a freshly curtin-
+# (confirmed live 2026-09-07: journalctl -b -1 on a freshly
 # deployed target showed selinux-autorelabel running for ~30s then a
 # clean systemd-initiated reboot, triggered by /.autorelabel).
-fixfiles -T 0 restore
+# No -T (thread count) -- confirmed live 2026-09-09 building this image
+# on arm64: this ISO's bundled policycoreutils doesn't support -T at
+# all ("/sbin/fixfiles: illegal option -- T"), a fatal kickstart %post
+# error under --erroronfail. Plain `restore` works identically on both
+# arches, just single-threaded.
+fixfiles restore
 rm -f /.autorelabel
+
+# The python3.12 package installed below (%packages) registers itself as
+# an `alternatives` slave for the bare `python3` command at a much
+# higher priority than the OS-default python3.6 (confirmed via `rpm -qp
+# --scripts python3.12*.rpm`: `alternatives --install /usr/bin/python3
+# python3 /usr/bin/python3.12 31200 ...`), which in `auto` mode silently
+# makes python3.12 the system-wide default the instant it's installed.
+# We only want python3.12 available at its own versioned path for
+# post-deploy configuration management to target explicitly -- not to
+# change what every other script/tool on this OS gets when it runs
+# `python3`.
+# Pin the alternative back to the distro's own default immediately after
+# install so EL8's normal python3 (3.6, matching every other unmodified
+# EL8 system) is untouched.
+alternatives --set python3 /usr/bin/python3.6
 %end
 
 %packages --ignoremissing
 @core
 bash-completion
 cloud-init
+# EL8's stock python3 is 3.6, too old for modern automation-tool module
+# payloads (which need 3.7+ for `from __future__ import annotations`).
+# Gives post-deploy configuration management a modern interpreter to
+# target explicitly, without changing the OS default. CONFIRMED
+# 2026-09-08 this line is NOT the cause of a separate, transient
+# empty-install failure seen on OL8 (the byte-identical original
+# kickstart, with this line absent entirely, reproduced the exact same
+# failure against Oracle's own mirror) -- see ISSUES.md:
+# ol8-transient-build-failure.
+python3.12
 # cloud-init only requires python3-oauthlib with MAAS. As such upstream
 # removed this dependency.
 python3-oauthlib
@@ -202,12 +272,18 @@ rsync
 tar
 patch
 yum-utils
-# grub2-efi-x64 ships grub signed for UEFI secure boot. If grub2-efi-x64-modules
+# grub2-efi-* ships grub signed for UEFI secure boot. If grub2-efi-*-modules
 # is installed grub will be generated on deployment and unsigned which breaks
 # UEFI secure boot.
-grub2-efi-x64
+# Wildcarded (not hardcoded grub2-efi-x64/shim-x64) -- confirmed live
+# 2026-09-09: the hardcoded amd64-only package names get silently
+# dropped by --ignoremissing on arm64 (grub2-efi-aa64/shim-aa64 there
+# instead), which meant grub2 itself was NEVER installed at all on the
+# first arm64 attempt -- no /etc/default/grub, every later sed against
+# it a fatal %post error. Matches ol9/ol10's own already-fixed pattern.
+grub2-efi-*
 efibootmgr
-shim-x64
+shim-*
 dosfstools
 lvm2
 mdadm
